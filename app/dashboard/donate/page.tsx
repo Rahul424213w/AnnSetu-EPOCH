@@ -1,0 +1,270 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { MapPicker } from "@/components/map-picker";
+import { useAuth } from "@/lib/auth-context";
+import { createDonation, triggerMatchingForDonation } from "@/lib/firestore";
+import { Timestamp } from "firebase/firestore";
+import { Loader2, ArrowLeft, Upload } from "lucide-react";
+import Link from "next/link";
+import type { FoodType, Location } from "@/lib/types";
+
+export default function DonatePage() {
+  const { userProfile } = useAuth();
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // Form state
+  const [foodType, setFoodType] = useState<FoodType>("veg");
+  const [quantity, setQuantity] = useState("");
+  const [quantityUnit, setQuantityUnit] = useState<"kg" | "meals">("meals");
+  const [expiryTime, setExpiryTime] = useState("");
+  const [pickupStart, setPickupStart] = useState("");
+  const [pickupEnd, setPickupEnd] = useState("");
+  const [packagingCondition, setPackagingCondition] = useState<"good" | "fair" | "poor">("good");
+  const [location, setLocation] = useState<Location | undefined>();
+  const [notes, setNotes] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userProfile || !location) {
+      setError("Please select a location on the map");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const donationId = await createDonation({
+        donor_id: userProfile.uid,
+        donor_name: userProfile.name,
+        food_type: foodType,
+        quantity: parseFloat(quantity),
+        quantity_unit: quantityUnit,
+        expiry_time: Timestamp.fromDate(new Date(expiryTime)),
+        pickup_window_start: Timestamp.fromDate(new Date(pickupStart)),
+        pickup_window_end: Timestamp.fromDate(new Date(pickupEnd)),
+        packaging_condition: packagingCondition,
+        location,
+        status: "active",
+      });
+
+      // Trigger matching engine in background — non-blocking
+      triggerMatchingForDonation(donationId).catch((err) =>
+        console.error("Background matching error:", err)
+      );
+
+      router.push("/dashboard/active");
+    } catch (err) {
+      console.error(err);
+      setError("Failed to create donation. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-6 pb-20 lg:pb-0">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" asChild>
+          <Link href="/dashboard">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Add Donation</h1>
+          <p className="text-muted-foreground">Share your surplus food with those in need</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Food Details</CardTitle>
+            <CardDescription>Provide information about the food you want to donate</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {error && (
+              <div className="p-3 text-sm text-destructive-foreground bg-destructive/10 rounded-lg border border-destructive/20">
+                {error}
+              </div>
+            )}
+
+            {/* Food Type */}
+            <div className="space-y-3">
+              <Label className="text-foreground">Food Type</Label>
+              <RadioGroup
+                value={foodType}
+                onValueChange={(value) => setFoodType(value as FoodType)}
+                className="flex flex-wrap gap-4"
+              >
+                <Label
+                  htmlFor="veg"
+                  className={`flex items-center gap-2 rounded-lg border px-4 py-3 cursor-pointer transition-colors ${
+                    foodType === "veg" ? "border-primary bg-primary/5" : "border-border"
+                  }`}
+                >
+                  <RadioGroupItem value="veg" id="veg" />
+                  <span className="text-foreground">Vegetarian</span>
+                </Label>
+                <Label
+                  htmlFor="non-veg"
+                  className={`flex items-center gap-2 rounded-lg border px-4 py-3 cursor-pointer transition-colors ${
+                    foodType === "non-veg" ? "border-primary bg-primary/5" : "border-border"
+                  }`}
+                >
+                  <RadioGroupItem value="non-veg" id="non-veg" />
+                  <span className="text-foreground">Non-Vegetarian</span>
+                </Label>
+                <Label
+                  htmlFor="packaged"
+                  className={`flex items-center gap-2 rounded-lg border px-4 py-3 cursor-pointer transition-colors ${
+                    foodType === "packaged" ? "border-primary bg-primary/5" : "border-border"
+                  }`}
+                >
+                  <RadioGroupItem value="packaged" id="packaged" />
+                  <span className="text-foreground">Packaged</span>
+                </Label>
+              </RadioGroup>
+            </div>
+
+            {/* Quantity */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="quantity" className="text-foreground">Quantity</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  placeholder="e.g., 25"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  required
+                  min="1"
+                  className="bg-input border-border"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="unit" className="text-foreground">Unit</Label>
+                <Select value={quantityUnit} onValueChange={(v) => setQuantityUnit(v as "kg" | "meals")}>
+                  <SelectTrigger className="bg-input border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="meals">Meals</SelectItem>
+                    <SelectItem value="kg">Kilograms (kg)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Expiry Time */}
+            <div className="space-y-2">
+              <Label htmlFor="expiry" className="text-foreground">Expiry Time</Label>
+              <Input
+                id="expiry"
+                type="datetime-local"
+                value={expiryTime}
+                onChange={(e) => setExpiryTime(e.target.value)}
+                required
+                className="bg-input border-border"
+              />
+              <p className="text-xs text-muted-foreground">When will this food no longer be safe to consume?</p>
+            </div>
+
+            {/* Pickup Window */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="pickup-start" className="text-foreground">Pickup From</Label>
+                <Input
+                  id="pickup-start"
+                  type="datetime-local"
+                  value={pickupStart}
+                  onChange={(e) => setPickupStart(e.target.value)}
+                  required
+                  className="bg-input border-border"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pickup-end" className="text-foreground">Pickup Until</Label>
+                <Input
+                  id="pickup-end"
+                  type="datetime-local"
+                  value={pickupEnd}
+                  onChange={(e) => setPickupEnd(e.target.value)}
+                  required
+                  className="bg-input border-border"
+                />
+              </div>
+            </div>
+
+            {/* Packaging Condition */}
+            <div className="space-y-2">
+              <Label htmlFor="packaging" className="text-foreground">Packaging Condition</Label>
+              <Select value={packagingCondition} onValueChange={(v) => setPackagingCondition(v as "good" | "fair" | "poor")}>
+                <SelectTrigger className="bg-input border-border">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="good">Good - Well sealed and fresh</SelectItem>
+                  <SelectItem value="fair">Fair - Adequate packaging</SelectItem>
+                  <SelectItem value="poor">Poor - Needs immediate pickup</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Location */}
+            <div className="space-y-2">
+              <Label className="text-foreground">Pickup Location</Label>
+              <MapPicker value={location} onChange={setLocation} />
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label htmlFor="notes" className="text-foreground">Additional Notes (Optional)</Label>
+              <Textarea
+                id="notes"
+                placeholder="Any special instructions for pickup..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="bg-input border-border"
+                rows={3}
+              />
+            </div>
+
+            {/* Image Upload (placeholder) */}
+            <div className="space-y-2">
+              <Label className="text-foreground">Food Image (Optional)</Label>
+              <div className="flex items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg hover:border-primary/50 transition-colors cursor-pointer">
+                <div className="text-center">
+                  <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
+                  <p className="mt-2 text-sm text-muted-foreground">Click to upload image</p>
+                </div>
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating Donation...
+                </>
+              ) : (
+                "Submit Donation"
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      </form>
+    </div>
+  );
+}

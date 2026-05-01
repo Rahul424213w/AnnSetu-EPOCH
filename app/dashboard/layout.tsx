@@ -16,17 +16,17 @@ export default function DashboardLayout({
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && (!user || !userProfile)) {
       router.push("/login");
     }
-  }, [user, loading, router]);
+  }, [loading, user, userProfile, router]);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">Loading your profile...</p>
         </div>
       </div>
     );

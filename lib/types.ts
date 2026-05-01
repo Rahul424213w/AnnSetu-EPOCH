@@ -51,6 +51,8 @@ export interface Match {
   donation_id: string;
   request_id: string;
   score: number;
+  ml_score?: number;
+  ml_priority?: "HIGH" | "MEDIUM" | "LOW";
   status: "pending" | "accepted" | "rejected" | "completed";
   created_at: Timestamp;
 }
@@ -70,8 +72,40 @@ export interface Delivery {
   pickup_photo_url?: string;
   delivery_photo_url?: string;
   distance?: number;
+  ml_score?: number;
+  ml_priority?: "HIGH" | "MEDIUM" | "LOW";
   created_at: Timestamp;
   updated_at: Timestamp;
+}
+
+// ─── ML Prediction Types ────────────────────────────────────────────────────────
+
+export interface MLPredictionInput {
+  need: number;
+  hunger: number;
+  distance: number;
+  routeTime: number;
+  trafficFactor: number;
+  matchProb: number;
+  spoilageRisk: number;
+}
+
+export interface MLPredictionOutput {
+  ml_score: number;
+  priority: "HIGH" | "MEDIUM" | "LOW";
+}
+
+export interface MLBatchInput {
+  items: MLPredictionInput[];
+}
+
+export interface MLBatchOutput {
+  results: MLPredictionOutput[];
+}
+
+export interface MLHealthResponse {
+  status: string;
+  model_loaded: boolean;
 }
 
 export interface DonationFund {

@@ -3,15 +3,12 @@ import {
   doc,
   addDoc,
   updateDoc,
-  deleteDoc,
   getDoc,
   getDocs,
   query,
   where,
-  orderBy,
   onSnapshot,
   Timestamp,
-  type QueryConstraint,
   type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -20,7 +17,7 @@ import type {
   NGORequest,
   Match,
   Delivery,
-  ImpactStats,
+  ImpactStats
 } from "./types";
 
 // Collection references
@@ -29,7 +26,6 @@ export const donationsCollection = collection(db, "donations");
 export const requestsCollection = collection(db, "requests");
 export const matchesCollection = collection(db, "matches");
 export const deliveriesCollection = collection(db, "deliveries");
-export const fundsCollection = collection(db, "donation_funds");
 export const statsCollection = collection(db, "stats");
 
 // ─── OTP Generator ─────────────────────────────────────────────────────────────
@@ -47,26 +43,29 @@ export async function createDonation(donation: Omit<Donation, "id" | "created_at
 }
 
 export async function getDonationsByDonor(donorId: string) {
-  const q = query(
-    donationsCollection,
-    where("donor_id", "==", donorId),
-    orderBy("created_at", "desc")
-  );
+  const q = query(donationsCollection, where("donor_id", "==", donorId));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Donation));
+  const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Donation));
+  return items.sort((a, b) => {
+    const tA = a.created_at?.toDate?.()?.getTime() || 0;
+    const tB = b.created_at?.toDate?.()?.getTime() || 0;
+    return tB - tA;
+  });
 }
 
 export async function getActiveDonations() {
-  const q = query(
-    donationsCollection,
-    where("status", "==", "active"),
-    orderBy("expiry_time", "asc")
-  );
+  const q = query(donationsCollection, where("status", "==", "active"));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Donation));
+  const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Donation));
+  return items.sort((a, b) => {
+    const tA = a.expiry_time?.toDate?.()?.getTime() || 0;
+    const tB = b.expiry_time?.toDate?.()?.getTime() || 0;
+    return tA - tB;
+  });
 }
 
 export async function updateDonation(id: string, data: Partial<Donation>) {
+  if (!id || id.startsWith("demo-")) return;
   await updateDoc(doc(donationsCollection, id), data);
 }
 
@@ -89,23 +88,23 @@ export async function createRequest(request: Omit<NGORequest, "id" | "created_at
 }
 
 export async function getRequestsByNGO(ngoId: string) {
-  const q = query(
-    requestsCollection,
-    where("ngo_id", "==", ngoId),
-    orderBy("created_at", "desc")
-  );
+  const q = query(requestsCollection, where("ngo_id", "==", ngoId));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as NGORequest));
+  const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as NGORequest));
+  return items.sort((a, b) => {
+    const tA = a.created_at?.toDate?.()?.getTime() || 0;
+    const tB = b.created_at?.toDate?.()?.getTime() || 0;
+    return tB - tA;
+  });
 }
 
 export async function getActiveRequests() {
-  const q = query(
-    requestsCollection,
-    where("status", "==", "active"),
-    orderBy("urgency", "desc")
-  );
+  const q = query(requestsCollection, where("status", "==", "active"));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as NGORequest));
+  const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as NGORequest));
+  // Sort by urgency descending
+  const urgencyMap: Record<string, number> = { high: 3, medium: 2, low: 1 };
+  return items.sort((a, b) => (urgencyMap[b.urgency || "low"] || 0) - (urgencyMap[a.urgency || "low"] || 0));
 }
 
 export async function getRequestById(id: string) {
@@ -118,6 +117,7 @@ export async function getRequestById(id: string) {
 }
 
 export async function updateRequest(id: string, data: Partial<NGORequest>) {
+  if (!id || id.startsWith("demo-")) return;
   await updateDoc(doc(requestsCollection, id), data);
 }
 
@@ -143,15 +143,11 @@ export async function getMatchesByRequest(requestId: string) {
 }
 
 export async function updateMatch(id: string, data: Partial<Match>) {
+  if (!id || id.startsWith("demo-")) return;
   await updateDoc(doc(matchesCollection, id), data);
 }
 
 // ─── Deliveries ────────────────────────────────────────────────────────────────
-
-/**
- * Create a delivery record with status "pending" (waiting for volunteer to accept).
- * OTPs are generated and stored here.
- */
 export async function createDelivery(
   delivery: Omit<Delivery, "id" | "created_at" | "updated_at" | "pickup_otp" | "delivery_otp">
 ) {
@@ -167,29 +163,19 @@ export async function createDelivery(
   return docRef.id;
 }
 
-/**
- * Get all deliveries with status "pending" (no volunteer assigned yet).
- * These show up in the volunteer's "Available Deliveries" list.
- */
 export async function getAvailableDeliveries() {
-  const q = query(
-    deliveriesCollection,
-    where("delivery_status", "==", "pending")
-  );
+  const q = query(deliveriesCollection, where("delivery_status", "==", "pending"));
   const snapshot = await getDocs(q);
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Delivery));
 }
 
-/**
- * Volunteer accepts a delivery: assigns themselves, sets status to "assigned".
- * OTPs are already stored in the delivery doc from createDelivery().
- */
 export async function acceptDelivery(
   deliveryId: string,
   volunteerId: string,
   volunteerName: string,
   volunteerPhone?: string
 ) {
+  if (!deliveryId || deliveryId.startsWith("demo-")) return;
   await updateDoc(doc(deliveriesCollection, deliveryId), {
     volunteer_id: volunteerId,
     volunteer_name: volunteerName,
@@ -200,108 +186,74 @@ export async function acceptDelivery(
   });
 }
 
-/**
- * Update delivery status and optional extra fields.
- * Used by the DeliveryTracker component to persist state changes.
- */
-export async function updateDeliveryStatus(
-  deliveryId: string,
-  deliveryStatus: Delivery["delivery_status"],
-  extra?: Partial<Delivery>
-) {
+export async function getDeliveriesByVolunteer(volunteerId: string) {
+  const q = query(deliveriesCollection, where("volunteer_id", "==", volunteerId));
+  const snapshot = await getDocs(q);
+  const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Delivery));
+  return items.sort((a, b) => {
+    const tA = a.created_at?.toDate?.()?.getTime() || 0;
+    const tB = b.created_at?.toDate?.()?.getTime() || 0;
+    return tB - tA;
+  });
+}
+
+export function subscribeToVolunteerDeliveries(volunteerId: string, callback: (deliveries: Delivery[]) => void): Unsubscribe {
+  const q = query(deliveriesCollection, where("volunteer_id", "==", volunteerId));
+  return onSnapshot(q, (snapshot) => {
+    const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Delivery));
+    items.sort((a, b) => {
+      const tA = a.created_at?.toDate?.()?.getTime() || 0;
+      const tB = b.created_at?.toDate?.()?.getTime() || 0;
+      return tB - tA;
+    });
+    callback(items);
+  });
+}
+
+export async function updateDeliveryStatus(deliveryId: string, status: Delivery["delivery_status"], extra?: Partial<Delivery>) {
+  if (!deliveryId || deliveryId.startsWith("demo-")) return;
   await updateDoc(doc(deliveriesCollection, deliveryId), {
-    delivery_status: deliveryStatus,
+    delivery_status: status,
     ...extra,
     updated_at: Timestamp.now(),
   });
 }
 
-/**
- * Get all deliveries for a specific volunteer (requires composite index).
- * Index URL: https://console.firebase.google.com/v1/r/project/annsetu-v0-cc0c1/firestore/indexes?create_composite=...
- */
-export async function getDeliveriesByVolunteer(volunteerId: string) {
-  const q = query(
-    deliveriesCollection,
-    where("volunteer_id", "==", volunteerId),
-    orderBy("created_at", "desc")
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Delivery));
-}
-
-/**
- * Real-time listener for a volunteer's active deliveries.
- */
-export function subscribeToVolunteerDeliveries(
-  volunteerId: string,
-  callback: (deliveries: Delivery[]) => void
-): Unsubscribe {
-  const q = query(
-    deliveriesCollection,
-    where("volunteer_id", "==", volunteerId),
-    orderBy("created_at", "desc")
-  );
+// ─── Real-time Subscriptions ──────────────────────────────────────────────────
+export function subscribeToDonorDonations(donorId: string, callback: (donations: Donation[]) => void): Unsubscribe {
+  const q = query(donationsCollection, where("donor_id", "==", donorId));
   return onSnapshot(q, (snapshot) => {
-    const deliveries = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Delivery));
-    callback(deliveries);
-  });
-}
-
-/**
- * Update a delivery (generic).
- */
-export async function updateDelivery(id: string, data: Partial<Delivery>) {
-  await updateDoc(doc(deliveriesCollection, id), {
-    ...data,
-    updated_at: Timestamp.now(),
-  });
-}
-
-// ─── Real-time Donor Stats ──────────────────────────────────────────────────────
-export function subscribeToDonorDonations(
-  donorId: string,
-  callback: (donations: Donation[]) => void
-): Unsubscribe {
-  const q = query(
-    donationsCollection,
-    where("donor_id", "==", donorId),
-    orderBy("created_at", "desc")
-  );
-  return onSnapshot(q, (snapshot) => {
-    callback(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Donation)));
+    const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Donation));
+    items.sort((a, b) => {
+      const tA = a.created_at?.toDate?.()?.getTime() || 0;
+      const tB = b.created_at?.toDate?.()?.getTime() || 0;
+      return tB - tA;
+    });
+    callback(items);
   }, (err) => {
     console.error("subscribeToDonorDonations error:", err);
     callback([]);
   });
 }
 
-// ─── Real-time NGO Requests ─────────────────────────────────────────────────────
-export function subscribeToNGORequests(
-  ngoId: string,
-  callback: (requests: NGORequest[]) => void
-): Unsubscribe {
-  const q = query(
-    requestsCollection,
-    where("ngo_id", "==", ngoId),
-    orderBy("created_at", "desc")
-  );
+export function subscribeToNGORequests(ngoId: string, callback: (requests: NGORequest[]) => void): Unsubscribe {
+  const q = query(requestsCollection, where("ngo_id", "==", ngoId));
   return onSnapshot(q, (snapshot) => {
-    callback(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as NGORequest)));
+    const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as NGORequest));
+    items.sort((a, b) => {
+      const tA = a.created_at?.toDate?.()?.getTime() || 0;
+      const tB = b.created_at?.toDate?.()?.getTime() || 0;
+      return tB - tA;
+    });
+    callback(items);
   }, (err) => {
     console.error("subscribeToNGORequests error:", err);
     callback([]);
   });
 }
 
-// ─── Real-time Available (Pending) Deliveries ───────────────────────────────────
-export function subscribeToAvailableDeliveries(
-  callback: (deliveries: Delivery[]) => void
-): Unsubscribe {
-  const q = query(
-    deliveriesCollection,
-    where("delivery_status", "==", "pending")
-  );
+export function subscribeToAvailableDeliveries(callback: (deliveries: Delivery[]) => void): Unsubscribe {
+  const q = query(deliveriesCollection, where("delivery_status", "==", "pending"));
   return onSnapshot(q, (snapshot) => {
     callback(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Delivery)));
   }, (err) => {
@@ -310,80 +262,26 @@ export function subscribeToAvailableDeliveries(
   });
 }
 
-// ─── Impact Stats — Real-time from aggregated doc or live compute ───────────────
-export function subscribeToImpactStats(
-  callback: (stats: ImpactStats) => void
-): Unsubscribe {
-  // First try the pre-aggregated stats doc
+// ─── Impact Stats ──────────────────────────────────────────────────────────────
+export function subscribeToImpactStats(callback: (stats: ImpactStats) => void): Unsubscribe {
   const statsDoc = doc(statsCollection, "global");
-  return onSnapshot(statsDoc, async (snapshot) => {
+  return onSnapshot(statsDoc, (snapshot) => {
     if (snapshot.exists()) {
       callback(snapshot.data() as ImpactStats);
     } else {
-      // Compute live from collections
-      try {
-        const [donSnap, delSnap, ngoSnap] = await Promise.all([
-          getDocs(donationsCollection),
-          getDocs(deliveriesCollection),
-          getDocs(query(requestsCollection)),
-        ]);
-
-        const allDonations = donSnap.docs.map((d) => d.data());
-        const allDeliveries = delSnap.docs.map((d) => d.data());
-
-        const deliveredCount = allDeliveries.filter((d) => d.delivery_status === "delivered").length;
-        const activeCount = allDeliveries.filter((d) =>
-          ["assigned", "pickup", "in_transit"].includes(d.delivery_status)
-        ).length;
-
-        const totalMeals = allDonations
-          .filter((d) => d.status === "delivered" || d.status === "matched")
-          .reduce((sum, d) => sum + (d.quantity || 0), 0);
-
-        const totalKg = allDonations
-          .filter((d) => (d.status === "delivered" || d.status === "matched") && d.quantity_unit === "kg")
-          .reduce((sum, d) => sum + (d.quantity || 0), 0);
-
-        const uniqueNGOs = new Set(
-          ngoSnap.docs.map((d) => d.data().ngo_id).filter(Boolean)
-        ).size;
-
-        callback({
-          meals_saved: totalMeals,
-          food_waste_reduced_kg: totalKg,
-          active_deliveries: activeCount,
-          ngos_served: uniqueNGOs,
-          total_donations: allDonations.length,
-          total_deliveries: deliveredCount,
-        });
-      } catch (err) {
-        console.error("Live impact stats error:", err);
-        callback({
-          meals_saved: 0,
-          food_waste_reduced_kg: 0,
-          active_deliveries: 0,
-          ngos_served: 0,
-          total_donations: 0,
-          total_deliveries: 0,
-        });
-      }
+      // No stats doc - let the component use fallback values
+      // Don't compute live from collections (expensive on large datasets)
+      console.warn("No global stats document found - using fallback values");
     }
   });
 }
 
-/** @deprecated Use subscribeToImpactStats instead */
-export function subscribeToStats(callback: (stats: ImpactStats) => void) {
-  return subscribeToImpactStats(callback);
-}
-
-// ─── Matching Engine Integration ────────────────────────────────────────────────
-/**
- * Run the matching engine for a newly created donation.
- * Fetches active requests, finds best match, creates Match + Delivery docs.
- */
+// ─── Matching Engine Trigger ───────────────────────────────────────────────────
+// Lazy-loaded to avoid bundling matching engine in initial load
 export async function triggerMatchingForDonation(donationId: string): Promise<void> {
   try {
-    const { findBestMatchForDonation, getMatchDistance } = await import("./matching-engine");
+    // Lazy import - only loaded when a donation is actually created
+    const { findBestMatchForDonationWithML, getMatchDistance } = await import("./matching-engine");
 
     const donationDoc = await getDoc(doc(donationsCollection, donationId));
     if (!donationDoc.exists()) return;
@@ -392,35 +290,33 @@ export async function triggerMatchingForDonation(donationId: string): Promise<vo
     const activeRequests = await getActiveRequests();
     if (activeRequests.length === 0) return;
 
-    const bestMatch = findBestMatchForDonation(donation, activeRequests);
-    if (!bestMatch || bestMatch.score < 30) return; // Minimum 30% match score
+    const bestMatch = await findBestMatchForDonationWithML(donation, activeRequests);
+    if (!bestMatch || bestMatch.score < 30) return;
 
-    const request = bestMatch.request;
-    const distance = getMatchDistance(donation, request);
-
-    // Create match record
+    const distance = getMatchDistance(donation, bestMatch.request);
     const matchId = await createMatch({
       donation_id: donationId,
-      request_id: request.id!,
+      request_id: bestMatch.request.id!,
       score: bestMatch.score,
+      ml_score: bestMatch.ml_score,
+      ml_priority: bestMatch.ml_priority,
       status: "pending",
     });
 
-    // Create delivery record (pending — waiting for NGO acceptance, then volunteer)
     await createDelivery({
       match_id: matchId,
       donation: { ...donation, id: donationId },
-      request,
+      request: bestMatch.request,
       pickup_status: "pending",
       delivery_status: "pending",
       distance: Math.round(distance * 10) / 10,
+      ml_score: bestMatch.ml_score,
+      ml_priority: bestMatch.ml_priority,
     });
 
-    // Update donation and request statuses to "matched"
     await updateDonation(donationId, { status: "matched" });
-    await updateRequest(request.id!, { status: "matched" });
+    await updateRequest(bestMatch.request.id!, { status: "matched" });
   } catch (err) {
-    console.error("Matching engine error:", err);
-    // Non-fatal — donation is still created even if matching fails
+    console.error("Matching engine trigger error:", err);
   }
 }

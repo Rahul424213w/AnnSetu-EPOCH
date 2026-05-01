@@ -14,24 +14,34 @@ interface MapPickerProps {
 
 export function MapPicker({ value, onChange }: MapPickerProps) {
   const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const [address, setAddress] = useState(value?.address || "");
   const [map, setMap] = useState<L.Map | null>(null);
   const [marker, setMarker] = useState<L.Marker | null>(null);
-  const [address, setAddress] = useState(value?.address || "");
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Default to a central location (e.g., Delhi, India)
-  const defaultLocation = { lat: 28.6139, lng: 77.209 };
+  const defaultLocation = { lat: 28.6139, lng: 77.2090 };
 
   useEffect(() => {
+    let isMounted = true;
+    let cleanupFn: (() => void) | null = null;
+
     // Dynamically import Leaflet to avoid SSR issues
     const loadMap = async () => {
       if (typeof window === "undefined" || !mapRef.current) return;
 
+      // If map is already initialized on this ref, don't do it again
+      if (mapInstanceRef.current) return;
+
       const L = (await import("leaflet")).default;
       await import("leaflet/dist/leaflet.css");
 
+      if (!isMounted || !mapRef.current) return;
+
+      // Check if the DOM element already has a leaflet instance (extra safety)
+      if ((mapRef.current as any)._leaflet_id) return;
+
       // Fix default marker icon issue with correct type assertion
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (L.Icon.Default.prototype as any)._getIconUrl;
       L.Icon.Default.mergeOptions({
         iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
@@ -40,40 +50,64 @@ export function MapPicker({ value, onChange }: MapPickerProps) {
       });
 
       const initialLocation = value || defaultLocation;
-      
-      const mapInstance = L.map(mapRef.current).setView(
+
+      const mapInstance = L.map(mapRef.current, {
+        preferCanvas: true, // Use Canvas renderer for better performance
+      }).setView(
         [initialLocation.lat, initialLocation.lng],
         13
       );
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      const tileLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
       }).addTo(mapInstance);
 
       const markerInstance = L.marker([initialLocation.lat, initialLocation.lng], {
         draggable: true,
       }).addTo(mapInstance);
 
-      markerInstance.on("dragend", () => {
+      // Event handlers with cleanup
+      const handleDragEnd = () => {
         const pos = markerInstance.getLatLng();
         onChange({ lat: pos.lat, lng: pos.lng, address });
-      });
+      };
 
-      mapInstance.on("click", (e: L.LeafletMouseEvent) => {
+      const handleClick = (e: L.LeafletMouseEvent) => {
         markerInstance.setLatLng(e.latlng);
         onChange({ lat: e.latlng.lat, lng: e.latlng.lng, address });
-      });
+      };
 
-      setMap(mapInstance);
-      setMarker(markerInstance);
-      setIsLoaded(true);
+      markerInstance.on("dragend", handleDragEnd);
+      mapInstance.on("click", handleClick);
+
+      // Cleanup function for event listeners
+      cleanupFn = () => {
+        markerInstance.off("dragend", handleDragEnd);
+        mapInstance.off("click", handleClick);
+      };
+
+      if (isMounted) {
+        mapInstanceRef.current = mapInstance;
+        setMap(mapInstance);
+        setMarker(markerInstance);
+        setIsLoaded(true);
+      } else {
+        cleanupFn?.();
+        tileLayer.remove();
+        markerInstance.remove();
+        mapInstance.remove();
+      }
     };
 
     loadMap();
 
     return () => {
-      if (map) {
-        map.remove();
+      isMounted = false;
+      cleanupFn?.();
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

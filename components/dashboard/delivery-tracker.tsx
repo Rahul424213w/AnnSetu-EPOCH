@@ -255,7 +255,7 @@ export function DeliveryTracker({ delivery, onStatusUpdate }: DeliveryTrackerPro
                 ) : (
                   <Store className="mr-2 h-4 w-4" />
                 )}
-                I've Arrived at Pickup
+                I&apos;ve Arrived at Pickup
               </Button>
             )}
 

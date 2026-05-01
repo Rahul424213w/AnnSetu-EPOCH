@@ -5,19 +5,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogFooter, 
-  DialogHeader, 
-  DialogTitle 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
 } from "@/components/ui/dialog";
 import { Clock, MapPin, Store, Package, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getRequestsByNGO, getMatchesByRequest, getDonationById, updateMatch, createDelivery } from "@/lib/firestore";
 import type { Match, Donation } from "@/lib/types";
 import { toast } from "sonner";
+import { calculateETA } from "@/lib/delivery-engine";
 
 // Extend Match type for UI
 type EnrichedMatch = Match & {
@@ -37,56 +38,78 @@ export default function MatchesPage() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
     async function loadMatches() {
       if (!user) return;
-      
+
       try {
         // Find all requests by this NGO
         const requests = await getRequestsByNGO(user.uid);
         const requestIds = requests.map(r => r.id).filter(Boolean) as string[];
-        
-        let allMatches: Match[] = [];
-        for (const reqId of requestIds) {
-          const matches = await getMatchesByRequest(reqId);
-          allMatches = [...allMatches, ...matches];
-        }
-        
-        // Enrich matches with donation details
+
+        // Batch get all matches
+        const allMatchesPromises = requestIds.map(id => getMatchesByRequest(id));
+        const allMatchesResults = await Promise.all(allMatchesPromises);
+        let allMatches: Match[] = allMatchesResults.flat();
+
+        // Limit to top 50 matches to prevent memory issues
+        allMatches = allMatches.slice(0, 50);
+
+        // Batch enrich matches with donation details using Promise.all
         const enrichedMatches: EnrichedMatch[] = [];
-        for (const match of allMatches) {
-          const donation = await getDonationById(match.donation_id);
-          if (donation) {
+
+        // Process in parallel with concurrency limit
+        const BATCH_SIZE = 10;
+        for (let i = 0; i < allMatches.length; i += BATCH_SIZE) {
+          const batch = allMatches.slice(i, i + BATCH_SIZE);
+          const batchResults = await Promise.all(batch.map(async (match) => {
+            const donation = await getDonationById(match.donation_id);
+            if (!donation) return null;
+
             // Compute real distance from donation/request locations
             let dist = 0;
+            let etaMinutes = 0;
             const request = requests.find(r => r.id === match.request_id);
             if (donation.location && request?.location) {
               try {
                 const { getMatchDistance } = await import("@/lib/matching-engine");
                 dist = Math.round(getMatchDistance(donation, request) * 10) / 10;
-              } catch { dist = 0; }
+                const etaData = calculateETA(donation.location.lat, donation.location.lng, request.location.lat, request.location.lng, 1);
+                etaMinutes = etaData.etaMinutes;
+              } catch { dist = 0; etaMinutes = 0; }
             }
-            const etaMinutes = Math.ceil(dist * 4); // ~15 km/h avg city speed
             const eta = etaMinutes < 60 ? `~${etaMinutes} min` : `~${Math.round(etaMinutes / 60)}h`;
-            enrichedMatches.push({
+
+            return {
               ...match,
               donation,
               distance: dist,
               eta,
-            });
-          }
+            } as EnrichedMatch;
+          }));
+
+          // Filter out nulls and add to results
+          enrichedMatches.push(...batchResults.filter((m): m is EnrichedMatch => m !== null));
         }
-        
-        setPendingMatches(enrichedMatches.filter(m => m.status === "pending"));
-        setAcceptedMatches(enrichedMatches.filter(m => m.status === "accepted" || m.status === "completed"));
+
+        if (isMounted) {
+          setPendingMatches(enrichedMatches.filter(m => m.status === "pending"));
+          setAcceptedMatches(enrichedMatches.filter(m => m.status === "accepted" || m.status === "completed"));
+          setIsLoading(false);
+        }
       } catch (error) {
         console.error("Error loading matches:", error);
         toast.error("Failed to load matches");
-      } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     }
-    
+
     loadMatches();
+
+    return () => {
+      isMounted = false;
+    };
   }, [user]);
 
   const formatTimeLeft = (date: any) => {
@@ -118,31 +141,30 @@ export default function MatchesPage() {
 
   const confirmAccept = async () => {
     if (!selectedMatch || !selectedMatch.id) return;
-    
+
     setIsProcessing(true);
     try {
       // 1. Update match status
       await updateMatch(selectedMatch.id, { status: "accepted" });
-      
+
       // 2. Create delivery record
-      // Get the request details to include in delivery
       const requests = await getRequestsByNGO(user!.uid);
       const request = requests.find(r => r.id === selectedMatch.request_id);
-      
+
       if (request) {
         await createDelivery({
           match_id: selectedMatch.id,
           donation: selectedMatch.donation,
           request,
           pickup_status: "pending",
-          delivery_status: "pending", // Waiting for a volunteer to accept
+          delivery_status: "pending",
         });
       }
-      
+
       // 3. Update UI
       setPendingMatches(prev => prev.filter(m => m.id !== selectedMatch.id));
       setAcceptedMatches(prev => [...prev, { ...selectedMatch, status: "accepted" }]);
-      
+
       toast.success("Match accepted! Delivery requested.");
       setShowAcceptDialog(false);
       setSelectedMatch(null);
@@ -237,8 +259,8 @@ export default function MatchesPage() {
                     </div>
 
                     <div className="flex gap-2">
-                      <Button 
-                        className="flex-1" 
+                      <Button
+                        className="flex-1"
                         onClick={() => handleAccept(match)}
                       >
                         <CheckCircle className="mr-2 h-4 w-4" />
@@ -326,7 +348,7 @@ export default function MatchesPage() {
               Are you sure you want to accept this donation from {selectedMatch?.donation?.donor_name}?
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedMatch && (
             <div className="rounded-lg border border-border p-4 space-y-2 text-sm">
               <div className="flex justify-between">

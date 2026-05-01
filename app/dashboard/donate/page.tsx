@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,10 +13,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { MapPicker } from "@/components/map-picker";
 import { useAuth } from "@/lib/auth-context";
 import { createDonation, triggerMatchingForDonation } from "@/lib/firestore";
+import { storage } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Timestamp } from "firebase/firestore";
-import { Loader2, ArrowLeft, Upload } from "lucide-react";
+import { Loader2, ArrowLeft, Upload, X, Camera } from "lucide-react";
 import Link from "next/link";
 import type { FoodType, Location } from "@/lib/types";
+import { toast } from "sonner";
 
 export default function DonatePage() {
   const { userProfile } = useAuth();
@@ -33,6 +37,31 @@ export default function DonatePage() {
   const [packagingCondition, setPackagingCondition] = useState<"good" | "fair" | "poor">("good");
   const [location, setLocation] = useState<Location | undefined>();
   const [notes, setNotes] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image size should be less than 5MB");
+        return;
+      }
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,10 +70,25 @@ export default function DonatePage() {
       return;
     }
 
+    if (!imageFile) {
+      setError("Please upload a photo of the food. It is mandatory for quality assurance.");
+      toast.error("Food image is required");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
+      // 1. Upload image to Firebase Storage
+      let imageUrl = "";
+      if (imageFile) {
+        const storageRef = ref(storage, `donations/${userProfile.uid}_${Date.now()}_${imageFile.name}`);
+        const uploadResult = await uploadBytes(storageRef, imageFile);
+        imageUrl = await getDownloadURL(uploadResult.ref);
+      }
+
+      // 2. Create donation in Firestore
       const donationId = await createDonation({
         donor_id: userProfile.uid,
         donor_name: userProfile.name,
@@ -56,6 +100,7 @@ export default function DonatePage() {
         pickup_window_end: Timestamp.fromDate(new Date(pickupEnd)),
         packaging_condition: packagingCondition,
         location,
+        image_url: imageUrl,
         status: "active",
       });
 
@@ -241,15 +286,67 @@ export default function DonatePage() {
               />
             </div>
 
-            {/* Image Upload (placeholder) */}
-            <div className="space-y-2">
-              <Label className="text-foreground">Food Image (Optional)</Label>
-              <div className="flex items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg hover:border-primary/50 transition-colors cursor-pointer">
-                <div className="text-center">
-                  <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
-                  <p className="mt-2 text-sm text-muted-foreground">Click to upload image</p>
+            {/* Image Upload */}
+            <div className="space-y-3">
+              <Label className="text-foreground flex items-center gap-2">
+                Food Photo <span className="text-destructive">*</span>
+              </Label>
+              
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                ref={fileInputRef}
+                onChange={handleImageChange}
+              />
+
+              {!imagePreview ? (
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="group flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-border rounded-2xl hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer bg-muted/30"
+                >
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="p-4 rounded-full bg-background border border-border group-hover:scale-110 transition-transform shadow-sm">
+                      <Camera className="h-8 w-8 text-primary" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-foreground">Click to take or upload a photo</p>
+                      <p className="text-xs text-muted-foreground mt-1">Clear photos help NGOs verify food quality</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="relative group rounded-2xl overflow-hidden border border-border aspect-video bg-muted">
+                  <Image
+                    src={imagePreview}
+                    alt="Food preview"
+                    fill
+                    unoptimized
+                    className="object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                    <Button 
+                      type="button" 
+                      variant="secondary" 
+                      size="sm" 
+                      className="gap-2"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="h-4 w-4" />
+                      Change
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="destructive" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={removeImage}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>

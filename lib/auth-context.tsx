@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useRef, type ReactNode } from "react";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -20,6 +20,7 @@ interface UserProfile {
   role: UserRole;
   phone?: string;
   location?: { lat: number; lng: number };
+  created_at?: Date;
 }
 
 interface AuthContextType {
@@ -30,6 +31,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, name: string, role: UserRole, phone?: string) => Promise<void>;
   signOut: () => Promise<void>;
   demoLogin: (role: UserRole) => void;
+  error: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -73,46 +75,79 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const userProfileRef = useRef<UserProfile | null>(null);
+
+  // Keep ref in sync with state to avoid stale closures in listeners
+  useEffect(() => {
+    userProfileRef.current = userProfile;
+  }, [userProfile]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      // Don't override if we're using a demo account
-      if (userProfile?.uid?.startsWith("demo-")) return;
+      setLoading(true);
+      // Don't override if we're using a demo account (checked via ref)
+      if (userProfileRef.current?.uid?.startsWith("demo-")) {
+        setLoading(false);
+        return;
+      }
 
-      setUser(firebaseUser);
       if (firebaseUser) {
+        setUser(firebaseUser);
         try {
           const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
           if (userDoc.exists()) {
-            setUserProfile(userDoc.data() as UserProfile);
+            const profile = userDoc.data() as UserProfile;
+            setUserProfile(profile);
+          } else {
+            console.warn("User logged in but no profile found in Firestore");
+            setUserProfile(null);
           }
         } catch (e) {
           console.error("Error fetching user profile", e);
+          setUserProfile(null);
         }
       } else {
+        setUser(null);
         setUserProfile(null);
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [userProfile?.uid]);
+  }, []);
 
   const signIn = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    setLoading(true);
+    setError(null);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || "Failed to sign in");
+      throw err;
+    }
   };
 
   const signUp = async (email: string, password: string, name: string, role: UserRole, phone?: string) => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const newProfile: UserProfile = {
-      uid: userCredential.user.uid,
-      email,
-      name,
-      role,
-      phone,
-    };
-    await setDoc(doc(db, "users", userCredential.user.uid), newProfile);
-    setUserProfile(newProfile);
+    setLoading(true);
+    setError(null);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const newProfile: UserProfile = {
+        uid: userCredential.user.uid,
+        email,
+        name,
+        role,
+        phone,
+        created_at: new Date(),
+      };
+      await setDoc(doc(db, "users", userCredential.user.uid), newProfile);
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || "Failed to register");
+      throw err;
+    }
   };
 
   const signOut = async () => {
@@ -127,19 +162,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const demoLogin = (role: UserRole) => {
     const profile = DEMO_PROFILES[role];
+    userProfileRef.current = profile;
     setUserProfile(profile);
     setUser({ uid: profile.uid, email: profile.email } as User);
     setLoading(false);
 
-    // Seed demo user doc in Firestore so all queries (donations, requests, deliveries) work
-    // This is fire-and-forget — non-blocking
+    // Seed demo user doc in Firestore so all queries work
     setDoc(doc(db, "users", profile.uid), profile, { merge: true }).catch((err) =>
       console.warn("Could not seed demo user doc:", err)
     );
   };
 
   return (
-    <AuthContext.Provider value={{ user, userProfile, loading, signIn, signUp, signOut, demoLogin }}>
+    <AuthContext.Provider value={{ user, userProfile, loading, error, signIn, signUp, signOut, demoLogin }}>
       {children}
     </AuthContext.Provider>
   );

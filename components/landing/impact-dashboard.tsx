@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { motion } from "framer-motion";
 import { Utensils, Leaf, Truck, Building2, TrendingUp, Users } from "lucide-react";
 import { subscribeToImpactStats } from "@/lib/firestore";
 import type { ImpactStats } from "@/lib/types";
@@ -40,6 +41,21 @@ function AnimatedCounter({ value, duration = 2000 }: { value: number; duration?:
 
   return <span>{count.toLocaleString()}</span>;
 }
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, scale: 0.9, y: 20 },
+  visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.5 } },
+};
 
 export function ImpactDashboard() {
   const [stats, setStats] = useState<ImpactStats>(FALLBACK_STATS);
@@ -104,7 +120,13 @@ export function ImpactDashboard() {
   return (
     <section id="impact" className="py-16 md:py-24">
       <div className="container mx-auto px-4">
-        <div className="text-center mb-12">
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.5 }}
+          className="text-center mb-12"
+        >
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-sm text-primary">
             <TrendingUp className="h-4 w-4" />
             <span>Live Platform Metrics</span>
@@ -116,28 +138,42 @@ export function ImpactDashboard() {
             Every meal saved is a step towards zero food waste. AnnSetu connects surplus food with communities 
             in need through intelligent matching and volunteer delivery networks across India.
           </p>
-        </div>
+        </motion.div>
 
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6 md:gap-6">
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-100px" }}
+          className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6 md:gap-6"
+        >
           {displayStats.map((stat, index) => (
-            <Card key={index} className="border-border bg-card hover:shadow-md transition-shadow">
-              <CardContent className="flex flex-col items-center p-6 text-center">
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  {stat.icon}
-                </div>
-                <div className="text-2xl font-bold text-foreground md:text-3xl">
-                  <AnimatedCounter value={stat.value} />
-                  {stat.suffix}
-                </div>
-                <p className="mt-1 text-sm font-medium text-foreground">{stat.label}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{stat.description}</p>
-              </CardContent>
-            </Card>
+            <motion.div key={index} variants={itemVariants} className="h-full">
+              <Card className="h-full border-border bg-card hover:shadow-md transition-shadow">
+                <CardContent className="flex flex-col items-center p-6 text-center h-full justify-center">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    {stat.icon}
+                  </div>
+                  <div className="text-2xl font-bold text-foreground md:text-3xl">
+                    <AnimatedCounter value={stat.value} />
+                    {stat.suffix}
+                  </div>
+                  <p className="mt-1 text-sm font-medium text-foreground">{stat.label}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{stat.description}</p>
+                </CardContent>
+              </Card>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
 
         {/* Trust Bar */}
-        <div className="mt-12 flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
+        <motion.div 
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8, delay: 0.5 }}
+          className="mt-12 flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground"
+        >
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
             <span>Real-time tracking</span>
@@ -154,7 +190,7 @@ export function ImpactDashboard() {
             <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
             <span>100% transparent</span>
           </div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );

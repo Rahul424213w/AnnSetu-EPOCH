@@ -5,390 +5,362 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  MapPin,
-  Store,
-  Building2,
-  Clock,
-  Package,
-  ArrowRight,
-  Navigation,
-  Loader2,
-  Bike,
-  IndianRupee,
-  Route,
-  Zap,
+  Clock, MapPin, Package, Truck, Brain, Activity,
+  AlertTriangle, Timer, Thermometer, TrendingUp,
+  CheckCircle, Navigation, Zap
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { subscribeToAvailableDeliveries, acceptDelivery } from "@/lib/firestore";
-import { getMatchDistance } from "@/lib/matching-engine";
-import type { Delivery } from "@/lib/types";
+import { checkMLHealth } from "@/lib/ml-client";
+import type { Delivery, MLPredictionOutput } from "@/lib/types";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 
-const urgencyConfig = {
-  high: { label: "URGENT", color: "bg-destructive text-destructive-foreground", pulse: true },
-  medium: { label: "Medium", color: "bg-accent/10 text-accent-foreground border border-accent/20", pulse: false },
-  low: { label: "Low", color: "bg-muted text-muted-foreground border border-border", pulse: false },
-};
+// Extended delivery with ML enrichment
+interface EnrichedDelivery extends Delivery {
+  eta?: { distanceKm: number; etaMinutes: number; trafficLevel: string };
+  spoilage?: { risk: string; score: number };
+  mlPrediction?: MLPredictionOutput;
+}
+
+// Traffic level type
+type TrafficLevel = 'Low' | 'Moderate' | 'Heavy' | 'Severe';
 
 export default function AvailableDeliveriesPage() {
-  const { userProfile } = useAuth();
-  const router = useRouter();
-  const [availableDeliveries, setAvailableDeliveries] = useState<Delivery[]>([]);
+  const { user, userProfile } = useAuth();
+  const [deliveries, setDeliveries] = useState<EnrichedDelivery[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
-  const [showAcceptDialog, setShowAcceptDialog] = useState(false);
-  const [isAccepting, setIsAccepting] = useState(false);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [mlStatus, setMLStatus] = useState<{ online: boolean; modelLoaded: boolean }>({
+    online: false, modelLoaded: false,
+  });
+  const [traffic, setTraffic] = useState<{ factor: number; level: TrafficLevel }>({ factor: 1.2, level: 'Moderate' });
 
-  // Real-time listener instead of one-shot fetch
+  // Check ML service health
   useEffect(() => {
-    const unsubscribe = subscribeToAvailableDeliveries((deliveries) => {
-      setAvailableDeliveries(deliveries);
-      setIsLoading(false);
+    checkMLHealth().then((health) => {
+      setMLStatus({
+        online: health.status === "healthy" || health.status === "ok",
+        modelLoaded: health.model_loaded,
+      });
     });
-    return () => unsubscribe();
   }, []);
 
-  const formatTimeLeft = (date: any) => {
-    if (!date) return "Unknown";
-    const expiryDate = date.toDate ? date.toDate() : new Date(date);
-    const diff = expiryDate.getTime() - Date.now();
-    if (diff <= 0) return "Expired";
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  };
+  // Get traffic factor on mount (client-side only) - lazy loaded
+  useEffect(() => {
+    let mounted = true;
+    import("@/lib/delivery-engine").then(({ getTrafficFactor }) => {
+      if (mounted) setTraffic(getTrafficFactor());
+    });
+    return () => { mounted = false; };
+  }, []);
 
-  const getDistance = (delivery: Delivery): number => {
-    if (delivery.distance) return delivery.distance;
-    if (delivery.donation?.location && delivery.request?.location) {
-      return Math.round(
-        getMatchDistance(delivery.donation as any, delivery.request as any) * 10
-      ) / 10;
-    }
-    return 0;
-  };
+  // Subscribe to available deliveries - enrich data once on snapshot
+  useEffect(() => {
+    let isMounted = true;
 
-  const getEstimatedTime = (distanceKm: number): string => {
-    const minutes = Math.ceil(distanceKm * 4); // ~15 km/h avg city speed
-    if (minutes < 60) return `${minutes} min`;
-    return `${Math.round(minutes / 60)}h ${minutes % 60}m`;
-  };
+    const unsub = subscribeToAvailableDeliveries(async (raw) => {
+      if (!isMounted) return;
 
-  const handleAccept = (delivery: Delivery) => {
-    setSelectedDelivery(delivery);
-    setShowAcceptDialog(true);
-  };
+      // Lazy load calculation functions
+      const { calculateETA, calculateSpoilageRisk } = await import("@/lib/delivery-engine");
 
-  const openMaps = (lat: number, lng: number, label?: string) => {
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-    window.open(url, "_blank");
-  };
+      // Process in batches to avoid blocking the main thread
+      const enriched: EnrichedDelivery[] = raw.map((delivery) => {
+        const d = delivery.donation;
+        const r = delivery.request;
 
-  const confirmAccept = async () => {
-    if (!selectedDelivery?.id || !userProfile) return;
+        let eta;
+        let spoilage;
+        let mlPrediction: MLPredictionOutput | undefined;
 
-    setIsAccepting(true);
+        if (d?.location && r?.location) {
+          // Synchronous calculations only - no async ML calls on every snapshot
+          eta = calculateETA(d.location.lat, d.location.lng, r.location.lat, r.location.lng, d.quantity);
+          spoilage = calculateSpoilageRisk(d.food_type || "packaged", eta.etaMinutes);
+
+          // Use stored ML score - don't call ML API on every real-time update
+          if (delivery.ml_score !== undefined) {
+            mlPrediction = {
+              ml_score: delivery.ml_score,
+              priority: delivery.ml_priority || "MEDIUM",
+            };
+          }
+        }
+
+        return { ...delivery, eta, spoilage, mlPrediction };
+      });
+
+      // Sort by stored ML score only (no async calls)
+      enriched.sort((a, b) => {
+        const scoreA = a.ml_score ?? 0;
+        const scoreB = b.ml_score ?? 0;
+        return scoreB - scoreA;
+      });
+
+      if (isMounted) {
+        setDeliveries(enriched);
+        setIsLoading(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, []);
+
+  const handleAccept = async (delivery: EnrichedDelivery) => {
+    if (!user || !delivery.id) return;
+    setAcceptingId(delivery.id);
     try {
       await acceptDelivery(
-        selectedDelivery.id,
-        userProfile.uid,
-        userProfile.name,
-        userProfile.phone
+        delivery.id,
+        user.uid,
+        userProfile?.name || user.displayName || "Volunteer",
+        userProfile?.phone
       );
-
-      toast.success("Delivery accepted! Navigating to pickup...");
-      setShowAcceptDialog(false);
-      setSelectedDelivery(null);
-
-      // Auto-open Google Maps for pickup navigation
-      if (selectedDelivery.donation?.location?.lat) {
-        openMaps(
-          selectedDelivery.donation.location.lat,
-          selectedDelivery.donation.location.lng,
-          selectedDelivery.donation.location.address
-        );
-      }
-
-      router.push("/dashboard/active");
-    } catch (error) {
-      console.error("Error accepting delivery:", error);
-      toast.error("Failed to accept delivery. Please try again.");
+      toast.success("Delivery accepted! Check your active deliveries.");
+    } catch (err) {
+      console.error("Accept error:", err);
+      toast.error("Failed to accept delivery");
     } finally {
-      setIsAccepting(false);
+      setAcceptingId(null);
     }
   };
 
-  const getDeliveryUrgency = (delivery: Delivery) => {
-    return delivery.request?.urgency || "medium";
+  const getPriorityColor = (priority?: string) => {
+    switch (priority) {
+      case "HIGH": return "bg-red-500/15 text-red-400 border-red-500/30";
+      case "MEDIUM": return "bg-amber-500/15 text-amber-400 border-amber-500/30";
+      case "LOW": return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+      default: return "bg-muted text-muted-foreground";
+    }
+  };
+
+  const getSpoilageColor = (risk?: string) => {
+    switch (risk) {
+      case "Critical": return "text-red-400";
+      case "High": return "text-orange-400";
+      case "Medium": return "text-amber-400";
+      default: return "text-emerald-400";
+    }
+  };
+
+  const getScoreGradient = (score?: number) => {
+    if (!score) return "from-muted to-muted";
+    if (score > 0.75) return "from-red-500/20 to-orange-500/20";
+    if (score >= 0.4) return "from-amber-500/20 to-yellow-500/20";
+    return "from-emerald-500/20 to-teal-500/20";
   };
 
   return (
     <div className="space-y-6 pb-20 lg:pb-0">
-      {/* Swiggy-style header */}
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Bike className="h-6 w-6 text-primary" />
-            Available Pickups
+            <Brain className="h-6 w-6 text-primary" />
+            ML-Powered Deliveries
           </h1>
-          <p className="text-muted-foreground">Accept a delivery to start earning</p>
+          <p className="text-muted-foreground">
+            AI-prioritised deliveries — highest impact shown first
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-sm font-medium text-green-600">Live</span>
+
+        {/* ML Status + Traffic */}
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
+            mlStatus.online
+              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+              : "bg-red-500/10 text-red-400 border-red-500/30"
+          }`}>
+            <Activity className="h-3 w-3" />
+            ML {mlStatus.online ? "Online" : "Offline"}
+          </div>
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
+            traffic.level === "Heavy" || traffic.level === "Severe"
+              ? "bg-red-500/10 text-red-400 border-red-500/30"
+              : traffic.level === "Moderate"
+              ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+              : "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+          }`}>
+            <Navigation className="h-3 w-3" />
+            Traffic: {traffic.level}
+          </div>
         </div>
       </div>
 
-      {/* Stats bar */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-xl bg-primary/5 border border-primary/10 p-3 text-center">
-          <p className="text-2xl font-bold text-primary">{availableDeliveries.length}</p>
-          <p className="text-xs text-muted-foreground">Available</p>
-        </div>
-        <div className="rounded-xl bg-muted/60 border border-border p-3 text-center">
-          <p className="text-2xl font-bold text-foreground">
-            {availableDeliveries.filter(d => getDeliveryUrgency(d) === "high").length}
-          </p>
-          <p className="text-xs text-muted-foreground">Urgent</p>
-        </div>
-        <div className="rounded-xl bg-muted/60 border border-border p-3 text-center">
-          <p className="text-2xl font-bold text-foreground">
-            {availableDeliveries.length > 0
-              ? `${Math.min(...availableDeliveries.map(d => getDistance(d)).filter(d => d > 0), 99).toFixed(1)}`
-              : "—"}
-          </p>
-          <p className="text-xs text-muted-foreground">Nearest (km)</p>
-        </div>
-      </div>
-
+      {/* Loading State */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center p-12 gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Finding nearby pickups...</p>
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <div className="relative">
+            <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary/30 border-t-primary"></div>
+            <Brain className="h-4 w-4 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          </div>
+          <p className="text-sm text-muted-foreground">Scoring deliveries with ML model…</p>
         </div>
-      ) : availableDeliveries.length === 0 ? (
+      ) : deliveries.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
-              <Package className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-semibold text-foreground">No pickups right now</h3>
-            <p className="text-muted-foreground text-center mt-2 max-w-xs">
-              New deliveries appear here in real-time. Stay online to get notified instantly!
+            <Package className="h-14 w-14 text-muted-foreground/50 mb-4" />
+            <h3 className="text-lg font-semibold text-foreground">No deliveries available</h3>
+            <p className="text-muted-foreground text-center mt-2 max-w-md">
+              New donation matches will appear here, scored and ranked by our ML priority model.
             </p>
-            <div className="mt-4 flex items-center gap-2 text-sm text-primary">
-              <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-              <span>Listening for new orders...</span>
-            </div>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {availableDeliveries.map((delivery) => {
-            const urgencyLevel = getDeliveryUrgency(delivery);
-            const urgency = urgencyConfig[urgencyLevel as keyof typeof urgencyConfig] || urgencyConfig.medium;
-            const distance = getDistance(delivery);
-            const estimatedTime = getEstimatedTime(distance);
+        <div className="grid gap-4">
+          {deliveries.map((delivery, idx) => {
+            const priority = delivery.mlPrediction?.priority || delivery.ml_priority;
+            const mlScore = delivery.mlPrediction?.ml_score ?? delivery.ml_score;
 
             return (
               <Card
-                key={delivery.id}
-                className="overflow-hidden hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-primary"
-                onClick={() => handleAccept(delivery)}
+                key={delivery.id || idx}
+                className={`relative overflow-hidden transition-all hover:shadow-lg hover:shadow-primary/5 border-border/50`}
               >
-                {/* Top bar — Swiggy-style order header */}
-                <div className="flex items-center justify-between px-4 pt-4 pb-2">
-                  <div className="flex items-center gap-2">
-                    <Badge className={urgency.color}>
-                      {urgency.pulse && <Zap className="h-3 w-3 mr-0.5" />}
-                      {urgency.label}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground capitalize font-medium">
-                      {delivery.donation?.food_type?.replace("-", " ") || "Food"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock className="h-3.5 w-3.5" />
-                    {formatTimeLeft(delivery.donation?.expiry_time)}
-                  </div>
-                </div>
+                {/* Priority gradient bar */}
+                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${getScoreGradient(mlScore)}`} />
 
-                <CardContent className="pt-0 pb-4">
-                  {/* Route Visualization — Swiggy pickup style */}
-                  <div className="flex items-stretch gap-3 mb-4 p-3 bg-muted/30 rounded-xl">
-                    <div className="flex flex-col items-center gap-0.5 shrink-0 py-1">
-                      <div className="h-3 w-3 rounded-full bg-green-500 ring-2 ring-green-500/20" />
-                      <div className="flex-1 w-px bg-border border-l border-dashed border-muted-foreground/30" />
-                      <div className="h-3 w-3 rounded-full bg-destructive ring-2 ring-destructive/20" />
+                <CardHeader className="pb-3 pt-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1 min-w-0">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Truck className="h-4 w-4 text-primary shrink-0" />
+                        <span className="truncate">
+                          {delivery.donation?.donor_name || "Donor"} → {delivery.request?.ngo_name || "NGO"}
+                        </span>
+                      </CardTitle>
+                      <CardDescription className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        <span className="truncate">
+                          {delivery.donation?.location?.address || "Pickup"} → {delivery.request?.location?.address || "Drop-off"}
+                        </span>
+                      </CardDescription>
                     </div>
-                    <div className="flex-1 space-y-3 min-w-0">
-                      <div>
-                        <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                          <Store className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                          <span className="truncate">{delivery.donation?.donor_name || "Donor"}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground pl-5 truncate">
-                          {delivery.donation?.location?.address || "Pickup location"}
-                        </p>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                          <Building2 className="h-3.5 w-3.5 text-destructive shrink-0" />
-                          <span className="truncate">{delivery.request?.ngo_name || "NGO"}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground pl-5 truncate">
-                          {delivery.request?.location?.address || "Drop location"}
-                        </p>
-                      </div>
+
+                    {/* ML Priority Badge */}
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      {priority && (
+                        <Badge className={`${getPriorityColor(priority)} border text-xs font-semibold`}>
+                          <Zap className="h-3 w-3 mr-1" />
+                          {priority}
+                        </Badge>
+                      )}
+                      {mlScore !== undefined && (
+                        <span className="text-xs text-muted-foreground font-mono">
+                          ML: {(mlScore * 100).toFixed(0)}%
+                        </span>
+                      )}
                     </div>
                   </div>
+                </CardHeader>
 
-                  {/* Bottom stats row — Swiggy-style */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 text-sm">
-                      <div className="flex items-center gap-1 text-foreground font-medium">
-                        <Route className="h-4 w-4 text-primary" />
-                        {distance > 0 ? `${distance} km` : "—"}
-                      </div>
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Clock className="h-3.5 w-3.5" />
-                        {estimatedTime}
-                      </div>
-                      <div className="flex items-center gap-1 text-foreground font-medium">
-                        <Package className="h-3.5 w-3.5 text-accent" />
+                <CardContent className="space-y-4">
+                  {/* Info Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {/* Food Info */}
+                    <div className="bg-muted/30 rounded-lg p-2.5 space-y-1">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Food</p>
+                      <p className="text-sm font-semibold text-foreground capitalize">
+                        {delivery.donation?.food_type?.replace("-", " ") || "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
                         {delivery.donation?.quantity || 0} {delivery.donation?.quantity_unit || "items"}
+                      </p>
+                    </div>
+
+                    {/* Distance & ETA */}
+                    <div className="bg-muted/30 rounded-lg p-2.5 space-y-1">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">ETA</p>
+                      <p className="text-sm font-semibold text-foreground flex items-center gap-1">
+                        <Timer className="h-3.5 w-3.5 text-primary" />
+                        {delivery.eta ? `${delivery.eta.etaMinutes} min` : "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {delivery.eta?.distanceKm || delivery.distance || 0} km
+                      </p>
+                    </div>
+
+                    {/* Spoilage Risk */}
+                    <div className="bg-muted/30 rounded-lg p-2.5 space-y-1">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Spoilage</p>
+                      <p className={`text-sm font-semibold flex items-center gap-1 ${getSpoilageColor(delivery.spoilage?.risk)}`}>
+                        <Thermometer className="h-3.5 w-3.5" />
+                        {delivery.spoilage?.risk || "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {delivery.spoilage ? `${(delivery.spoilage.score * 100).toFixed(0)}% risk` : "—"}
+                      </p>
+                    </div>
+
+                    {/* Urgency */}
+                    <div className="bg-muted/30 rounded-lg p-2.5 space-y-1">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Urgency</p>
+                      <p className="text-sm font-semibold text-foreground capitalize flex items-center gap-1">
+                        <AlertTriangle className={`h-3.5 w-3.5 ${
+                          delivery.request?.urgency === "high" ? "text-red-400" :
+                          delivery.request?.urgency === "medium" ? "text-amber-400" : "text-emerald-400"
+                        }`} />
+                        {delivery.request?.urgency || "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {delivery.request?.people_count || 0} people
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* ML Score Bar */}
+                  {mlScore !== undefined && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          <TrendingUp className="h-3 w-3" />
+                          ML Priority Score
+                        </span>
+                        <span className="font-mono font-semibold text-foreground">
+                          {(mlScore * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="h-2 bg-muted/50 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 bg-gradient-to-r ${
+                            mlScore > 0.75 ? "from-red-500 to-orange-500" :
+                            mlScore >= 0.4 ? "from-amber-500 to-yellow-500" :
+                            "from-emerald-500 to-teal-500"
+                          }`}
+                          style={{ width: `${Math.min(mlScore * 100, 100)}%` }}
+                        />
                       </div>
                     </div>
-                    <Button size="sm" className="gap-1.5 shadow-sm">
-                      <Navigation className="h-3.5 w-3.5" />
-                      Accept
-                    </Button>
-                  </div>
+                  )}
+
+                  {/* Accept Button */}
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    disabled={acceptingId === delivery.id}
+                    onClick={() => handleAccept(delivery)}
+                  >
+                    {acceptingId === delivery.id ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-background/30 border-t-background mr-2" />
+                        Accepting…
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Accept Delivery
+                      </>
+                    )}
+                  </Button>
                 </CardContent>
               </Card>
             );
           })}
         </div>
       )}
-
-      {/* Accept Confirmation Dialog — Swiggy-style summary */}
-      <Dialog open={showAcceptDialog} onOpenChange={setShowAcceptDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Bike className="h-5 w-5 text-primary" />
-              Confirm Pickup
-            </DialogTitle>
-            <DialogDescription>
-              Accept this delivery and navigate to the pickup location.
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedDelivery && (
-            <div className="space-y-4">
-              {/* Route card */}
-              <div className="rounded-xl border border-border p-4 space-y-4">
-                {/* Pickup */}
-                <div className="flex items-start gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500/10 shrink-0">
-                    <Store className="h-4 w-4 text-green-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-green-600 uppercase tracking-wide font-semibold">Pickup</p>
-                    <p className="font-semibold text-foreground truncate">
-                      {selectedDelivery.donation?.donor_name || "Donor"}
-                    </p>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
-                      <MapPin className="h-3 w-3 shrink-0" />
-                      <span className="truncate">
-                        {selectedDelivery.donation?.location?.address || "Address not set"}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pl-4">
-                  <div className="h-px flex-1 border-t border-dashed border-border" />
-                  <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                  <div className="h-px flex-1 border-t border-dashed border-border" />
-                </div>
-
-                {/* Delivery */}
-                <div className="flex items-start gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-destructive/10 shrink-0">
-                    <Building2 className="h-4 w-4 text-destructive" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-destructive uppercase tracking-wide font-semibold">Drop-off</p>
-                    <p className="font-semibold text-foreground truncate">
-                      {selectedDelivery.request?.ngo_name || "NGO"}
-                    </p>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
-                      <MapPin className="h-3 w-3 shrink-0" />
-                      <span className="truncate">
-                        {selectedDelivery.request?.location?.address || "Address not set"}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stats row */}
-              <div className="grid grid-cols-3 gap-3 text-center text-sm">
-                <div className="rounded-lg bg-muted/60 p-3">
-                  <p className="font-bold text-foreground text-base">
-                    {getDistance(selectedDelivery)} km
-                  </p>
-                  <p className="text-muted-foreground text-xs mt-0.5">Distance</p>
-                </div>
-                <div className="rounded-lg bg-muted/60 p-3">
-                  <p className="font-bold text-foreground text-base">
-                    {getEstimatedTime(getDistance(selectedDelivery))}
-                  </p>
-                  <p className="text-muted-foreground text-xs mt-0.5">Est. Time</p>
-                </div>
-                <div className="rounded-lg bg-muted/60 p-3">
-                  <p className="font-bold text-foreground text-base">
-                    {selectedDelivery.donation?.quantity || 0}
-                  </p>
-                  <p className="text-muted-foreground text-xs mt-0.5">
-                    {selectedDelivery.donation?.quantity_unit || "items"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowAcceptDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={confirmAccept} disabled={isAccepting} className="gap-2">
-              {isAccepting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Accepting...
-                </>
-              ) : (
-                <>
-                  <Navigation className="h-4 w-4" />
-                  Accept & Navigate
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

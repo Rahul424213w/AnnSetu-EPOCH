@@ -1,189 +1,148 @@
-# AnnSetu — Real-Time Food Redistribution Platform
+# AnnSetu 🌾🤝
 
-<p align="center">
-  <strong>Connecting surplus food with communities in need — powered by AI matching and volunteer delivery.</strong>
-</p>
+AnnSetu is a high-performance, intelligent food redistribution ecosystem designed to eliminate food waste by connecting surplus food from donors (restaurants, caterers, individuals) with verified NGOs and a decentralized network of volunteer riders.
 
----
-
-## 🎯 What is AnnSetu?
-
-AnnSetu is an intelligent, real-time food redistribution platform that minimizes food waste by connecting **Donors** (restaurants, vendors, individuals), **NGOs** (community kitchens, shelters), and **Volunteer Riders** through an automated matching engine and delivery tracking system.
-
-> **Ann** (अन्न) = Food in Hindi | **Setu** (सेतु) = Bridge — *A bridge between surplus food and hunger.*
+The platform leverages real-time data, an **ML-powered priority prediction engine**, and a secure dual-OTP handoff system to ensure that fresh food reaches those who need it most, with maximum efficiency, transparency, and speed.
 
 ---
 
-## 🛠️ Tech Stack
+## 🚀 Tech Stack & Architecture
 
-| Layer | Technology |
-|-------|-----------|
-| **Framework** | [Next.js 16](https://nextjs.org/) (App Router) |
-| **Frontend** | [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) |
-| **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) |
-| **UI Components** | [shadcn/ui](https://ui.shadcn.com/) (Radix UI primitives) |
-| **Icons** | [Lucide React](https://lucide.dev/) |
-| **Database** | [Firebase Firestore](https://firebase.google.com/products/firestore) (real-time NoSQL) |
-| **Authentication** | [Firebase Auth](https://firebase.google.com/products/auth) (Email/Password) |
-| **Font** | [Plus Jakarta Sans](https://fonts.google.com/specimen/Plus+Jakarta+Sans) |
+AnnSetu is built using a modern, decoupled full-stack architecture optimized for real-time interactivity, mobile responsiveness, and scalable machine learning inference.
+
+### Frontend: UI/UX Excellence
+*   **[Next.js 14+ (App Router)](https://nextjs.org/)**: The backbone of the web application, providing server-side rendering, optimized image handling, and a robust API routing system.
+*   **[Tailwind CSS](https://tailwindcss.com/)**: Utility-first CSS framework used for creating a custom, premium, and highly responsive design system.
+*   **[Framer Motion](https://www.framer.com/motion/)**: Powers the platform's fluid UI—handling layout transitions, dynamic data visualizations, and micro-interactions.
+*   **[shadcn/ui](https://ui.shadcn.com/)**: A collection of high-quality, accessible components built on top of Radix UI.
+*   **[Leaflet & React-Leaflet](https://leafletjs.com/)**: Integrated interactive maps for precise location targeting, geocoding, and delivery route visualization.
+
+### Backend & Real-time Data
+*   **[Firebase Authentication](https://firebase.google.com/products/auth)**: Secure identity management with role-based access control (Donor, NGO, Volunteer).
+*   **[Cloud Firestore](https://firebase.google.com/products/firestore)**: A real-time NoSQL database. We utilize Firestore's `onSnapshot` listeners to provide a "zero-refresh" experience—updates to donations, matches, and deliveries propagate to all connected clients in milliseconds.
+*   **[TypeScript](https://www.typescriptlang.org/)**: Enforces strict type safety across the Node.js codebase, ensuring robust data contracts between the UI, Firebase, and the ML microservice.
+
+### Machine Learning Microservice
+*   **[Python 3.9+](https://www.python.org/)**: The language of choice for the data science backend.
+*   **[FastAPI](https://fastapi.tiangolo.com/)**: A modern, fast web framework for building the ML prediction API, handling concurrent requests from the Next.js backend.
+*   **[Scikit-learn](https://scikit-learn.org/)**: Used for training and deploying the core **Random Forest Regressor** model that predicts delivery priority.
+*   **[Pandas](https://pandas.pydata.org/) & Numpy**: For data manipulation, synthetic data generation, and feature extraction.
 
 ---
 
-## ✨ Key Features
+## 🧠 The Smart Delivery & ML Matching Engine
 
-### 🔐 Role-Based Dashboards
-- **Donors** — List surplus food, track active donations, view impact history
-- **NGOs** — Submit food requests, review AI-matched donations, manage distribution
-- **Volunteers** — Browse available pickups (Swiggy-style UI), accept deliveries, track routes with Google Maps navigation
+One of AnnSetu's core innovations is its **Blended Priority Engine**, which fuses physical logistics heuristics with a trained Machine Learning model.
 
-### 🧠 AI-Powered Matching Engine
-- Scores donations against NGO requests using **5 weighted factors**: expiry urgency (25%), NGO urgency (25%), proximity (20%), quantity fit (15%), food type compatibility (15%)
-- Haversine formula for accurate distance calculation
-- Auto-triggers on new donation creation — matches are instant
+### 1. ML Priority Pipeline
+The system uses a Random Forest model trained on synthetic historical logistics data to predict the optimal priority of a delivery.
+*   **Features Analyzed**: Distance, Traffic Multiplier, Food Vulnerability, Route Time, Base Match Probability, NGO Need Level, Hunger Index.
+*   **Output**: A continuous Priority Score (0-100) and a Classification (HIGH, MEDIUM, LOW).
+*   **Resiliency**: The Next.js backend communicates with the FastAPI service via an internal API proxy (`/api/ml-predict/batch`). If the Python ML service is unreachable, the Node.js backend gracefully falls back to a deterministic **Heuristic Engine** to ensure zero downtime.
 
-### 📍 Swiggy-Style Delivery Flow
-- Real-time available deliveries with live listener (auto-refreshes)
-- Green/Red route visualization (Pickup → Drop-off)
-- Accept delivery → Auto-opens Google Maps for navigation
-- OTP-verified pickup and delivery handoffs (6-digit codes)
-- Step-by-step delivery tracker: Assigned → At Pickup → In Transit → Delivered
+### 2. Traffic-Aware ETA & Spoilage Risk
+Before hitting the ML model, the physical engine (`lib/delivery-engine.ts`) calculates:
+*   **Traffic Modeling**: Automatically applies traffic multipliers based on the time of day (e.g., peak morning 8-10 AM, evening 5-8 PM).
+*   **Spoilage Assessment**: Categorizes food into High (Cooked/Dairy), Medium (Produce), or Low (Packaged) vulnerability. It combines this with the Traffic ETA to flag deliveries that are at high risk of spoiling in transit.
 
-### 📊 Real-Time Impact Dashboard
-- Landing page shows live platform metrics (meals saved, food waste reduced, NGOs served)
-- Dashboard overview cards powered by Firestore `onSnapshot` listeners
-- Animated counters with easing transitions
+### 3. Blended Scoring Algorithm
+The final priority score used to rank deliveries for volunteers is a blend:
+*   **60% ML Prediction**: The Random Forest's assessment of overall impact.
+*   **40% Heuristics**: Immediate physical constraints like distance and urgent expiry times.
 
-### 🎮 Demo Mode
-- Instant demo login for all 3 roles (Donor, NGO, Volunteer)
-- Demo users are seeded into Firestore — all functionality works including creating donations, accepting deliveries, OTP verification
-- Real login users get pure Firebase Auth with real-time Firestore data
+---
+
+## ✨ Feature Deep-Dive: A Seamless Workflow
+
+### 🎁 For Donors (The Source)
+*   **Instant Listing**: A streamlined, mobile-friendly form to list surplus food with type, quantity, and strict expiry details.
+*   **Precision Map Picker**: Donors drop a pin exactly where the pickup should happen, capturing exact GPS coordinates for the routing engine.
+*   **Live Tracking Dashboard**: Track every donation from "Pending" to "In Transit" to "Delivered" with real-time Firestore-powered status badges.
+
+### 🏢 For NGOs (The Impact)
+*   **Automated Smart Matching**: When a donation is created, the backend instantly calculates distances to all NGOs, checks capacity, and generates Match records.
+*   **Priority Smart Feed**: Donations are sorted by their blended ML Priority Rank, putting the most urgent and viable food at the top of the NGO's dashboard.
+*   **One-Tap Claiming**: NGOs can instantly reserve food, which updates the database and immediately alerts the volunteer network.
+
+### 🛵 For Volunteers (The Heroes)
+*   **Swiggy-Style Dashboard**: A mobile-optimized interface showing available nearby pickups, complete with ML-generated impact scores, traffic-aware ETAs, and distance metrics.
+*   **Visual Priority Gradients**: Deliveries are color-coded (Red for High urgency, Yellow for Medium) based on the ML engine's assessment.
+*   **In-App Navigation**: One-tap "Navigate" buttons open Google Maps with exact pickup/drop-off coordinates.
+
+### 🔐 Dual-OTP Security Verification
+To ensure 100% accountability and prevent food misappropriation, the platform enforces a strict handoff protocol:
+1.  **Pickup OTP**: The Volunteer must enter a 6-digit OTP generated by the Donor to confirm they have physically received the food.
+2.  **Delivery OTP**: The Volunteer must enter a second OTP provided by the NGO to successfully close the delivery loop and mark the status as Completed.
 
 ---
 
 ## 📁 Project Structure
 
-```
+```text
 annsetu-v0/
-├── app/
-│   ├── page.tsx                    # Landing page
-│   ├── login/page.tsx              # Login + Demo login
-│   ├── signup/page.tsx             # Registration with role selection
-│   └── dashboard/
-│       ├── page.tsx                # Role-based overview (auto-detects)
-│       ├── donate/page.tsx         # Donor: Add donation form
-│       ├── request/page.tsx        # NGO: Add food request form
-│       ├── active/page.tsx         # Active donations/deliveries
-│       ├── available/page.tsx      # Volunteer: Swiggy-style pickup list
-│       ├── matches/page.tsx        # NGO: View matched donations
-│       ├── completed/page.tsx      # Volunteer: Completed deliveries
-│       └── history/page.tsx        # Donation/request history
-├── components/
-│   ├── landing/                    # Landing page sections
-│   │   ├── header.tsx
-│   │   ├── hero.tsx
-│   │   ├── impact-dashboard.tsx    # Real-time stats with fallbacks
-│   │   ├── how-it-works.tsx
-│   │   ├── features-grid.tsx       # Platform features showcase
-│   │   ├── testimonials.tsx        # Community stories
-│   │   ├── volunteer-cta.tsx
-│   │   ├── donate-cta.tsx
-│   │   └── footer.tsx
-│   ├── dashboard/
-│   │   ├── donor-overview.tsx      # Live Firestore stats
-│   │   ├── ngo-overview.tsx        # Live Firestore stats
-│   │   ├── volunteer-overview.tsx  # Live Firestore stats
-│   │   ├── delivery-tracker.tsx    # Step-by-step OTP tracker
-│   │   ├── sidebar.tsx
-│   │   └── header.tsx
-│   └── ui/                         # shadcn/ui components
-├── lib/
-│   ├── firebase.ts                 # Firebase config
-│   ├── firestore.ts                # All Firestore CRUD + real-time listeners
-│   ├── auth-context.tsx            # Auth provider with demo seeding
-│   ├── matching-engine.ts          # AI matching algorithm
-│   └── types.ts                    # TypeScript interfaces
+├── app/                  # Next.js App Router (Pages, API Routes)
+│   ├── api/              # Internal API proxies (ML communication)
+│   └── dashboard/        # Role-specific dashboards (Donor, NGO, Volunteer)
+├── components/           # Reusable React Components
+│   ├── dashboard/        # Complex UI features (Maps, Trackers, Data Tables)
+│   └── landing/          # Marketing and public-facing UI
+├── lib/                  # Core Business Logic & Configurations
+│   ├── firestore.ts      # Firebase DB schemas, mutations, and triggers
+│   ├── matching-engine.ts# Heuristic + ML matching algorithms
+│   ├── delivery-engine.ts# ETA, Traffic, and Spoilage math
+│   └── ml-client.ts      # Node.js wrapper for the Python ML service
+└── ML/                   # Python Machine Learning Microservice
+    ├── api.py            # FastAPI server
+    ├── train_model.py    # Random Forest training script
+    └── generate_data.py  # Synthetic logistics data generator
 ```
 
 ---
 
-## 🚀 Getting Started
+## 🛠️ Getting Started
 
-### Prerequisites
-- Node.js v18+
-- npm or pnpm
-- Firebase project with Firestore and Auth enabled
+### 1. Web Platform (Next.js) Setup
+1.  **Clone the repository**.
+2.  **Install Node dependencies**:
+    ```bash
+    npm install
+    ```
+3.  **Environment Configuration**: Create a `.env.local` file and add your Firebase credentials and the ML API URL:
+    ```env
+    NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+    # ... other firebase config
+    ML_API_URL=http://localhost:8000
+    NEXT_PUBLIC_ML_API_URL=http://localhost:8000
+    ```
+4.  **Run the Development Server**:
+    ```bash
+    npm run dev
+    ```
 
-### Installation
+### 2. ML Prediction Service (Python) Setup
+To enable the intelligent ranking and scoring features, you must run the local ML service.
+1.  **Navigate to the ML Directory**:
+    ```bash
+    cd ML
+    ```
+2.  **Install Python Dependencies**:
+    ```bash
+    pip install fastapi uvicorn scikit-learn pandas numpy
+    ```
+3.  **Train the Model**:
+    ```bash
+    python train_model.py
+    ```
+4.  **Start the FastAPI Server**:
+    ```bash
+    uvicorn api:app --reload --port 8000
+    ```
 
-```bash
-# Clone the repository
-git clone <repository-url>
-cd annsetu-v0
-
-# Install dependencies
-npm install
-
-# Set up environment variables
-cp .env.example .env.local
-```
-
-### Environment Setup
-
-Create `.env.local` with your Firebase credentials:
-
-```env
-NEXT_PUBLIC_FIREBASE_API_KEY="..."
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="..."
-NEXT_PUBLIC_FIREBASE_PROJECT_ID="..."
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="..."
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="..."
-NEXT_PUBLIC_FIREBASE_APP_ID="..."
-NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID="..."
-```
-
-### Run Development Server
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
----
-
-## 🎮 Demo Walkthrough
-
-### Quick Start (No registration needed)
-1. Go to `/login` → Click any demo role button (Donor, NGO, or Volunteer)
-
-### Full Flow
-1. **Donor** → "Add Donation" → Fill food details + map location → Submit
-2. **Matching Engine** auto-runs → Creates Match + Delivery records in Firestore
-3. **NGO** → "View Matches" → See matched donation with score → Accept
-4. **Volunteer** → "Available Pickups" → Accept delivery → Auto-navigates to Google Maps
-5. **Volunteer** → "Active Delivery" → Mark arrived → Verify Pickup OTP → Navigate to NGO → Verify Delivery OTP
-6. **Done!** → History and impact stats update in real-time
+### 3. Testing the App
+*   Open `http://localhost:3000`.
+*   Click **"Try Demo"** on the login page to easily switch between Donor, NGO, and Volunteer roles using pre-configured mock accounts.
+*   To test the full flow: Create a donation (Donor) -> Claim it (NGO) -> Accept and deliver it using OTPs (Volunteer).
 
 ---
 
-## 🔥 Firestore Collections
-
-| Collection | Purpose |
-|-----------|---------|
-| `users` | User profiles (uid, name, role, email, phone, location) |
-| `donations` | Food donations from donors |
-| `requests` | Food requests from NGOs |
-| `matches` | AI-generated matches (donation_id ↔ request_id + score) |
-| `deliveries` | Delivery tasks with embedded donation/request, OTPs, status |
-| `stats` | Global impact metrics (optional pre-aggregated doc) |
-
-### Required Composite Indexes
-- `deliveries`: `volunteer_id` ASC + `created_at` DESC
-- `donations`: `donor_id` ASC + `created_at` DESC
-- `requests`: `ngo_id` ASC + `created_at` DESC
-
----
-
-## 📄 License
-
-This project was built for a hackathon. Feel free to fork and contribute!
+*Built with ❤️ to ensure that every surplus meal finds a plate.*

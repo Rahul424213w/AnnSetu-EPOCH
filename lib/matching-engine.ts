@@ -1,10 +1,15 @@
+// lib/matching-engine.ts
+// Optimized matching engine with lazy-loaded ML integration
+
 import type { Donation, NGORequest, Match } from "./types";
 import { Timestamp } from "firebase/firestore";
 
-interface MatchScore {
+export interface MatchScore {
   donation: Donation;
   request: NGORequest;
   score: number;
+  ml_score?: number;
+  ml_priority?: "HIGH" | "MEDIUM" | "LOW";
   breakdown: {
     expiryScore: number;
     urgencyScore: number;
@@ -162,6 +167,11 @@ function calculateMatchScore(
 
 /**
  * Find the best matches for all active donations and requests
+ * Optimized with:
+ * - Food type grouping (reduces comparisons)
+ * - Spatial bounding box filter (avoids expensive Haversine for distant points)
+ * - Early filtering of low-quality matches
+ * - Hard limit on result size to prevent memory issues
  */
 export function findMatches(
   donations: Donation[],
@@ -169,15 +179,39 @@ export function findMatches(
 ): MatchScore[] {
   const matches: MatchScore[] = [];
 
-  // Filter active items only
   const activeDonations = donations.filter((d) => d.status === "active");
   const activeRequests = requests.filter((r) => r.status === "active");
 
-  // Calculate scores for all possible combinations
+  // Optimization 1: Group requests by food_type (Hash Map)
+  // This turns O(N*M) into O(N * (M/Categories)), massively reducing iterations.
+  const requestsByFoodType = new Map<string, NGORequest[]>();
+  for (const req of activeRequests) {
+    const list = requestsByFoodType.get(req.food_type) || [];
+    list.push(req);
+    requestsByFoodType.set(req.food_type, list);
+  }
+
+  // Optimization 2: Fast spatial bounding box filter
+  // ~0.5 degrees difference is roughly 55km. Avoids heavy Haversine math for distant points.
+  const MAX_COORD_DIFF = 0.5;
+
   for (const donation of activeDonations) {
-    for (const request of activeRequests) {
+    const compatibleRequests = requestsByFoodType.get(donation.food_type);
+    if (!compatibleRequests) continue;
+
+    for (const request of compatibleRequests) {
+      // Fast spatial pre-check before expensive math
+      if (
+        Math.abs(donation.location.lat - request.location.lat) > MAX_COORD_DIFF ||
+        Math.abs(donation.location.lng - request.location.lng) > MAX_COORD_DIFF
+      ) {
+        continue;
+      }
+
       const match = calculateMatchScore(donation, request);
-      if (match) {
+
+      // Optimization 3: Only push high-quality heuristic matches (Score > 40)
+      if (match && match.score > 40) {
         matches.push(match);
       }
     }
@@ -186,7 +220,9 @@ export function findMatches(
   // Sort by score (highest first)
   matches.sort((a, b) => b.score - a.score);
 
-  return matches;
+  // Optimization 4: Slice array before returning!
+  // This prevents the "deserialization crash" when Next.js passes data to the client.
+  return matches.slice(0, 200);
 }
 
 /**
@@ -237,6 +273,8 @@ export function createMatchFromScore(matchScore: MatchScore): Omit<Match, "id" |
     donation_id: matchScore.donation.id!,
     request_id: matchScore.request.id!,
     score: matchScore.score,
+    ml_score: matchScore.ml_score,
+    ml_priority: matchScore.ml_priority,
     status: "pending",
   };
 }
@@ -251,4 +289,64 @@ export function getMatchDistance(donation: Donation, request: NGORequest): numbe
     request.location.lat,
     request.location.lng
   );
+}
+
+// ─── ML-Enhanced Matching (Lazy-loaded) ─────────────────────────────────────────
+
+/**
+ * Find matches with ML-enhanced scoring.
+ * Runs heuristic matching first, then enriches top candidates with ML predictions.
+ * ML client is lazy-loaded to avoid module-level import bloat.
+ */
+export async function findMatchesWithML(
+  donations: Donation[],
+  requests: NGORequest[]
+): Promise<MatchScore[]> {
+  // Get heuristic matches first - already limited to top 200
+  const matches = findMatches(donations, requests);
+  if (matches.length === 0) return [];
+
+  // Limit to top 30 for ML enrichment to avoid API overload
+  const topMatches = matches.slice(0, 30);
+
+  try {
+    // Lazy import - only loads when actually needed
+    const { extractMLFeatures, predictPriority } = await import("./ml-client");
+
+    // Process sequentially to avoid overwhelming the ML API
+    const enriched: MatchScore[] = [];
+    for (const match of topMatches) {
+      try {
+        const features = await extractMLFeatures(match.donation, match.request);
+        const prediction = await predictPriority(features);
+        enriched.push({
+          ...match,
+          ml_score: prediction.ml_score,
+          ml_priority: prediction.priority,
+          // Blend: 60% ML score + 40% heuristic (both normalised to 0-100)
+          score: Math.round(prediction.ml_score * 60 + match.score * 0.4),
+        });
+      } catch {
+        enriched.push(match); // keep heuristic score on failure
+      }
+    }
+
+    // Re-sort by blended score
+    enriched.sort((a, b) => b.score - a.score);
+    return enriched;
+  } catch {
+    // ML unavailable, return heuristic matches
+    return matches;
+  }
+}
+
+/**
+ * Find the best ML-scored match for a specific donation
+ */
+export async function findBestMatchForDonationWithML(
+  donation: Donation,
+  requests: NGORequest[]
+): Promise<MatchScore | null> {
+  const matches = await findMatchesWithML([donation], requests);
+  return matches.length > 0 ? matches[0] : null;
 }

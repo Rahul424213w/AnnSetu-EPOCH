@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
@@ -68,8 +69,8 @@ export function DashboardSidebar({ role }: SidebarProps) {
         <div className="flex h-full flex-col">
           <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-6">
             <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
-                <Utensils className="h-4 w-4 text-sidebar-primary-foreground" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg overflow-hidden bg-white">
+                <Image src="/logo.jpg" alt="AnnSetu Logo" width={36} height={36} className="object-cover" />
               </div>
               <span className="text-lg brand-name text-sidebar-foreground">AnnSetu</span>
             </Link>

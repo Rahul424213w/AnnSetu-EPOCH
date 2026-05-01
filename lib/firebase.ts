@@ -1,6 +1,7 @@
-import { initializeApp, getApps } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, Firestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -14,10 +15,22 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase only if it hasn't been initialized yet
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Initialize Firestore with settings only once
+let db: Firestore;
+try {
+  db = getFirestore(app);
+} catch (e) {
+  db = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+  } as any);
+}
+
+export { db };
+export const storage = getStorage(app);
 
 let analytics = null;
 if (typeof window !== "undefined") {

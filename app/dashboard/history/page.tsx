@@ -7,6 +7,7 @@ import { CheckCircle, XCircle, Clock, Package, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getDonationsByDonor, getRequestsByNGO, getDeliveriesByVolunteer } from "@/lib/firestore";
 import type { Donation, NGORequest, Delivery } from "@/lib/types";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const statusConfig = {
   delivered: { label: "Delivered", color: "bg-primary/10 text-primary", icon: CheckCircle },

@@ -6,6 +6,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
+  GoogleAuthProvider,
+  signInWithPopup,
   type User,
 } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
@@ -31,6 +33,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, name: string, role: UserRole, phone?: string) => Promise<void>;
   signOut: () => Promise<void>;
   demoLogin: (role: UserRole) => void;
+  signInWithGoogle: () => Promise<void>;
   error: string | null;
 }
 
@@ -129,6 +132,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const signInWithGoogle = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      
+      const userDoc = await getDoc(doc(db, "users", result.user.uid));
+      if (!userDoc.exists()) {
+        const newProfile: UserProfile = {
+          uid: result.user.uid,
+          email: result.user.email || "",
+          name: result.user.displayName || "Google User",
+          role: "donor", // Defaulting to donor for Google sign-in
+          created_at: new Date(),
+        };
+        await setDoc(doc(db, "users", result.user.uid), newProfile);
+        setUserProfile(newProfile);
+      } else {
+        setUserProfile(userDoc.data() as UserProfile);
+      }
+    } catch (err: any) {
+      setLoading(false);
+      if (err?.code !== "auth/popup-closed-by-user" && err?.code !== "auth/cancelled-popup-request") {
+        setError(err.message || "Failed to sign in with Google");
+      }
+      throw err;
+    }
+  };
+
   const signUp = async (email: string, password: string, name: string, role: UserRole, phone?: string) => {
     setLoading(true);
     setError(null);
@@ -174,7 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, userProfile, loading, error, signIn, signUp, signOut, demoLogin }}>
+    <AuthContext.Provider value={{ user, userProfile, loading, error, signIn, signUp, signOut, demoLogin, signInWithGoogle }}>
       {children}
     </AuthContext.Provider>
   );

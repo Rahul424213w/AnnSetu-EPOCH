@@ -26,7 +26,7 @@ export function Footer() {
           <div className="md:col-span-2">
             <Link href="/" className="flex items-center gap-2 mb-6 group">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl overflow-hidden bg-white shadow-lg shadow-primary/20 group-hover:scale-110 transition-transform">
-                <Image src="/logo.jpg" alt="AnnSetu Logo" width={48} height={48} className="object-cover" />
+                <Image src="/logo.png" alt="AnnSetu Logo" width={48} height={48} className="object-cover" />
               </div>
               <span className="text-2xl font-bold tracking-tight text-foreground">अन्नSetu</span>
             </Link>

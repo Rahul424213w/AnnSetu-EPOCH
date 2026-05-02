@@ -29,7 +29,7 @@ export function Header() {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg overflow-hidden bg-white">
-            <Image src="/logo.jpg" alt="AnnSetu Logo" width={40} height={40} className="object-cover" priority />
+            <Image src="/logo.png" alt="AnnSetu Logo" width={40} height={40} className="object-cover" priority />
           </div>
           <span className="text-xl brand-name text-foreground">अन्नSetu</span>
         </Link>

@@ -172,6 +172,34 @@ const SEED_DONATIONS = [
     status: "matched",
     created_at: hoursAgo(1.5),
   },
+  {
+    donor_id: "demo-donor",
+    donor_name: "Taj West End",
+    food_type: "veg",
+    quantity: 200,
+    quantity_unit: "meals",
+    expiry_time: hoursAgo(1),
+    pickup_window_start: hoursAgo(5),
+    pickup_window_end: hoursAgo(3),
+    packaging_condition: "excellent",
+    location: { lat: 12.9817, lng: 77.5816, address: "Race Course Road, Bangalore" },
+    status: "delivered",
+    created_at: hoursAgo(24),
+  },
+  {
+    donor_id: "demo-donor",
+    donor_name: "Taj West End",
+    food_type: "non-veg",
+    quantity: 50,
+    quantity_unit: "meals",
+    expiry_time: hoursAgo(2),
+    pickup_window_start: hoursAgo(48),
+    pickup_window_end: hoursAgo(46),
+    packaging_condition: "good",
+    location: { lat: 12.9817, lng: 77.5816, address: "Race Course Road, Bangalore" },
+    status: "delivered",
+    created_at: hoursAgo(49),
+  },
 ];
 
 const SEED_REQUESTS = [
@@ -244,6 +272,34 @@ const SEED_REQUESTS = [
     location: { lat: 12.9352, lng: 77.6245, address: "Koramangala 4th Block, Bangalore" },
     status: "matched",
     created_at: hoursAgo(0.9),
+  },
+  {
+    ngo_id: "demo-ngo",
+    ngo_name: "Robin Hood Army",
+    food_type: "veg",
+    quantity: 200,
+    people_count: 400,
+    urgency: "medium",
+    time_window_start: hoursAgo(6),
+    time_window_end: hoursAgo(2),
+    storage_capability: true,
+    location: { lat: 12.9352, lng: 77.6245, address: "Koramangala 4th Block, Bangalore" },
+    status: "fulfilled",
+    created_at: hoursAgo(24),
+  },
+  {
+    ngo_id: "demo-ngo",
+    ngo_name: "Robin Hood Army",
+    food_type: "non-veg",
+    quantity: 50,
+    people_count: 100,
+    urgency: "high",
+    time_window_start: hoursAgo(50),
+    time_window_end: hoursAgo(46),
+    storage_capability: false,
+    location: { lat: 12.9352, lng: 77.6245, address: "Koramangala 4th Block, Bangalore" },
+    status: "fulfilled",
+    created_at: hoursAgo(49),
   },
 ];
 
@@ -343,6 +399,26 @@ export default function SeedPage() {
         status: "accepted",
         created_at: hoursAgo(1.5),
       });
+
+      const match4 = await addDoc(collection(db, "matches"), {
+        donation_id: donationIds[5],
+        request_id: requestIds[5],
+        score: 95,
+        ml_score: 0.98,
+        ml_priority: "HIGH",
+        status: "completed",
+        created_at: hoursAgo(24),
+      });
+
+      const match5 = await addDoc(collection(db, "matches"), {
+        donation_id: donationIds[6],
+        request_id: requestIds[6],
+        score: 90,
+        ml_score: 0.91,
+        ml_priority: "HIGH",
+        status: "completed",
+        created_at: hoursAgo(49),
+      });
       addLog("✅ Matches seeded");
 
       // 6. Create deliveries
@@ -410,7 +486,45 @@ export default function SeedPage() {
         updated_at: hoursAgo(1.4),
       });
 
-      addLog("✅ 3 deliveries seeded with live tracking data");
+      // Delivery 4: Delivered by demo-volunteer
+      await addDoc(collection(db, "deliveries"), {
+        match_id: match4.id,
+        volunteer_id: "demo-volunteer",
+        volunteer_name: "Rahul Kumar",
+        volunteer_phone: "+91 9876543212",
+        donation: { ...SEED_DONATIONS[5], id: donationIds[5] },
+        request: { ...SEED_REQUESTS[5], id: requestIds[5] },
+        pickup_status: "picked",
+        delivery_status: "delivered",
+        pickup_otp: "123456",
+        delivery_otp: "654321",
+        distance: 5.2,
+        current_location: SEED_REQUESTS[5].location,
+        eta: "0 mins",
+        created_at: hoursAgo(23),
+        updated_at: hoursAgo(22.5),
+      });
+
+      // Delivery 5: Delivered by demo-volunteer
+      await addDoc(collection(db, "deliveries"), {
+        match_id: match5.id,
+        volunteer_id: "demo-volunteer",
+        volunteer_name: "Rahul Kumar",
+        volunteer_phone: "+91 9876543212",
+        donation: { ...SEED_DONATIONS[6], id: donationIds[6] },
+        request: { ...SEED_REQUESTS[6], id: requestIds[6] },
+        pickup_status: "picked",
+        delivery_status: "delivered",
+        pickup_otp: "111111",
+        delivery_otp: "222222",
+        distance: 3.1,
+        current_location: SEED_REQUESTS[6].location,
+        eta: "0 mins",
+        created_at: hoursAgo(48),
+        updated_at: hoursAgo(47),
+      });
+
+      addLog("✅ 5 deliveries seeded with live tracking data");
 
       addLog("");
       addLog("🎉 Real-world demo environment successfully initialized!");

@@ -20,13 +20,15 @@ import type {
   ImpactStats
 } from "./types";
 
-// Collection references
-export const usersCollection = collection(db, "users");
-export const donationsCollection = collection(db, "donations");
-export const requestsCollection = collection(db, "requests");
-export const matchesCollection = collection(db, "matches");
-export const deliveriesCollection = collection(db, "deliveries");
-export const statsCollection = collection(db, "stats");
+// ─── Lazy collection getters ─────────────────────────────────────────────────
+// Using getter functions instead of module-level constants prevents
+// "Firestore not initialized" errors during Next.js hot-reload cycles.
+const usersCollection = () => collection(db, "users");
+const donationsCollection = () => collection(db, "donations");
+const requestsCollection = () => collection(db, "requests");
+const matchesCollection = () => collection(db, "matches");
+const deliveriesCollection = () => collection(db, "deliveries");
+const statsCollection = () => collection(db, "stats");
 
 // ─── OTP Generator ─────────────────────────────────────────────────────────────
 export function generateOTP(): string {
@@ -35,7 +37,7 @@ export function generateOTP(): string {
 
 // ─── Donations ─────────────────────────────────────────────────────────────────
 export async function createDonation(donation: Omit<Donation, "id" | "created_at">) {
-  const docRef = await addDoc(donationsCollection, {
+  const docRef = await addDoc(donationsCollection(), {
     ...donation,
     created_at: Timestamp.now(),
   });
@@ -43,7 +45,7 @@ export async function createDonation(donation: Omit<Donation, "id" | "created_at
 }
 
 export async function getDonationsByDonor(donorId: string) {
-  const q = query(donationsCollection, where("donor_id", "==", donorId));
+  const q = query(donationsCollection(), where("donor_id", "==", donorId));
   const snapshot = await getDocs(q);
   const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Donation));
   return items.sort((a, b) => {
@@ -54,7 +56,7 @@ export async function getDonationsByDonor(donorId: string) {
 }
 
 export async function getActiveDonations() {
-  const q = query(donationsCollection, where("status", "==", "active"));
+  const q = query(donationsCollection(), where("status", "==", "active"));
   const snapshot = await getDocs(q);
   const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Donation));
   return items.sort((a, b) => {
@@ -66,11 +68,11 @@ export async function getActiveDonations() {
 
 export async function updateDonation(id: string, data: Partial<Donation>) {
   if (!id || id.startsWith("demo-")) return;
-  await updateDoc(doc(donationsCollection, id), data);
+  await updateDoc(doc(donationsCollection(), id), data);
 }
 
 export async function getDonationById(id: string) {
-  const docRef = doc(donationsCollection, id);
+  const docRef = doc(donationsCollection(), id);
   const snapshot = await getDoc(docRef);
   if (snapshot.exists()) {
     return { id: snapshot.id, ...snapshot.data() } as Donation;
@@ -80,7 +82,7 @@ export async function getDonationById(id: string) {
 
 // ─── NGO Requests ───────────────────────────────────────────────────────────────
 export async function createRequest(request: Omit<NGORequest, "id" | "created_at">) {
-  const docRef = await addDoc(requestsCollection, {
+  const docRef = await addDoc(requestsCollection(), {
     ...request,
     created_at: Timestamp.now(),
   });
@@ -88,7 +90,7 @@ export async function createRequest(request: Omit<NGORequest, "id" | "created_at
 }
 
 export async function getRequestsByNGO(ngoId: string) {
-  const q = query(requestsCollection, where("ngo_id", "==", ngoId));
+  const q = query(requestsCollection(), where("ngo_id", "==", ngoId));
   const snapshot = await getDocs(q);
   const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as NGORequest));
   return items.sort((a, b) => {
@@ -99,16 +101,15 @@ export async function getRequestsByNGO(ngoId: string) {
 }
 
 export async function getActiveRequests() {
-  const q = query(requestsCollection, where("status", "==", "active"));
+  const q = query(requestsCollection(), where("status", "==", "active"));
   const snapshot = await getDocs(q);
   const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as NGORequest));
-  // Sort by urgency descending
   const urgencyMap: Record<string, number> = { high: 3, medium: 2, low: 1 };
   return items.sort((a, b) => (urgencyMap[b.urgency || "low"] || 0) - (urgencyMap[a.urgency || "low"] || 0));
 }
 
 export async function getRequestById(id: string) {
-  const docRef = doc(requestsCollection, id);
+  const docRef = doc(requestsCollection(), id);
   const snapshot = await getDoc(docRef);
   if (snapshot.exists()) {
     return { id: snapshot.id, ...snapshot.data() } as NGORequest;
@@ -118,12 +119,12 @@ export async function getRequestById(id: string) {
 
 export async function updateRequest(id: string, data: Partial<NGORequest>) {
   if (!id || id.startsWith("demo-")) return;
-  await updateDoc(doc(requestsCollection, id), data);
+  await updateDoc(doc(requestsCollection(), id), data);
 }
 
 // ─── Matches ───────────────────────────────────────────────────────────────────
 export async function createMatch(match: Omit<Match, "id" | "created_at">) {
-  const docRef = await addDoc(matchesCollection, {
+  const docRef = await addDoc(matchesCollection(), {
     ...match,
     created_at: Timestamp.now(),
   });
@@ -131,20 +132,20 @@ export async function createMatch(match: Omit<Match, "id" | "created_at">) {
 }
 
 export async function getMatchesByDonation(donationId: string) {
-  const q = query(matchesCollection, where("donation_id", "==", donationId));
+  const q = query(matchesCollection(), where("donation_id", "==", donationId));
   const snapshot = await getDocs(q);
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Match));
 }
 
 export async function getMatchesByRequest(requestId: string) {
-  const q = query(matchesCollection, where("request_id", "==", requestId));
+  const q = query(matchesCollection(), where("request_id", "==", requestId));
   const snapshot = await getDocs(q);
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Match));
 }
 
 export async function updateMatch(id: string, data: Partial<Match>) {
   if (!id || id.startsWith("demo-")) return;
-  await updateDoc(doc(matchesCollection, id), data);
+  await updateDoc(doc(matchesCollection(), id), data);
 }
 
 // ─── Deliveries ────────────────────────────────────────────────────────────────
@@ -152,7 +153,7 @@ export async function createDelivery(
   delivery: Omit<Delivery, "id" | "created_at" | "updated_at" | "pickup_otp" | "delivery_otp">
 ) {
   const now = Timestamp.now();
-  const docRef = await addDoc(deliveriesCollection, {
+  const docRef = await addDoc(deliveriesCollection(), {
     ...delivery,
     delivery_status: delivery.delivery_status ?? "pending",
     pickup_otp: generateOTP(),
@@ -164,7 +165,7 @@ export async function createDelivery(
 }
 
 export async function getAvailableDeliveries() {
-  const q = query(deliveriesCollection, where("delivery_status", "==", "pending"));
+  const q = query(deliveriesCollection(), where("delivery_status", "==", "pending"));
   const snapshot = await getDocs(q);
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Delivery));
 }
@@ -176,7 +177,7 @@ export async function acceptDelivery(
   volunteerPhone?: string
 ) {
   if (!deliveryId || deliveryId.startsWith("demo-")) return;
-  await updateDoc(doc(deliveriesCollection, deliveryId), {
+  await updateDoc(doc(deliveriesCollection(), deliveryId), {
     volunteer_id: volunteerId,
     volunteer_name: volunteerName,
     volunteer_phone: volunteerPhone ?? null,
@@ -187,7 +188,7 @@ export async function acceptDelivery(
 }
 
 export async function getDeliveriesByVolunteer(volunteerId: string) {
-  const q = query(deliveriesCollection, where("volunteer_id", "==", volunteerId));
+  const q = query(deliveriesCollection(), where("volunteer_id", "==", volunteerId));
   const snapshot = await getDocs(q);
   const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Delivery));
   return items.sort((a, b) => {
@@ -198,7 +199,7 @@ export async function getDeliveriesByVolunteer(volunteerId: string) {
 }
 
 export function subscribeToVolunteerDeliveries(volunteerId: string, callback: (deliveries: Delivery[]) => void): Unsubscribe {
-  const q = query(deliveriesCollection, where("volunteer_id", "==", volunteerId));
+  const q = query(deliveriesCollection(), where("volunteer_id", "==", volunteerId));
   return onSnapshot(q, (snapshot) => {
     const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Delivery));
     items.sort((a, b) => {
@@ -212,7 +213,7 @@ export function subscribeToVolunteerDeliveries(volunteerId: string, callback: (d
 
 export async function updateDeliveryStatus(deliveryId: string, status: Delivery["delivery_status"], extra?: Partial<Delivery>) {
   if (!deliveryId || deliveryId.startsWith("demo-")) return;
-  await updateDoc(doc(deliveriesCollection, deliveryId), {
+  await updateDoc(doc(deliveriesCollection(), deliveryId), {
     delivery_status: status,
     ...extra,
     updated_at: Timestamp.now(),
@@ -221,7 +222,7 @@ export async function updateDeliveryStatus(deliveryId: string, status: Delivery[
 
 // ─── Real-time Subscriptions ──────────────────────────────────────────────────
 export function subscribeToDonorDonations(donorId: string, callback: (donations: Donation[]) => void): Unsubscribe {
-  const q = query(donationsCollection, where("donor_id", "==", donorId));
+  const q = query(donationsCollection(), where("donor_id", "==", donorId));
   return onSnapshot(q, (snapshot) => {
     const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Donation));
     items.sort((a, b) => {
@@ -237,7 +238,7 @@ export function subscribeToDonorDonations(donorId: string, callback: (donations:
 }
 
 export function subscribeToNGORequests(ngoId: string, callback: (requests: NGORequest[]) => void): Unsubscribe {
-  const q = query(requestsCollection, where("ngo_id", "==", ngoId));
+  const q = query(requestsCollection(), where("ngo_id", "==", ngoId));
   return onSnapshot(q, (snapshot) => {
     const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as NGORequest));
     items.sort((a, b) => {
@@ -253,7 +254,7 @@ export function subscribeToNGORequests(ngoId: string, callback: (requests: NGORe
 }
 
 export function subscribeToAvailableDeliveries(callback: (deliveries: Delivery[]) => void): Unsubscribe {
-  const q = query(deliveriesCollection, where("delivery_status", "==", "pending"));
+  const q = query(deliveriesCollection(), where("delivery_status", "==", "pending"));
   return onSnapshot(q, (snapshot) => {
     callback(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Delivery)));
   }, (err) => {
@@ -263,8 +264,7 @@ export function subscribeToAvailableDeliveries(callback: (deliveries: Delivery[]
 }
 
 export function subscribeToNGODeliveries(ngoId: string, callback: (deliveries: Delivery[]) => void): Unsubscribe {
-  // Query for deliveries where the request is from this NGO
-  const q = query(deliveriesCollection, where("request.ngo_id", "==", ngoId));
+  const q = query(deliveriesCollection(), where("request.ngo_id", "==", ngoId));
   return onSnapshot(q, (snapshot) => {
     callback(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Delivery)));
   }, (err) => {
@@ -274,8 +274,7 @@ export function subscribeToNGODeliveries(ngoId: string, callback: (deliveries: D
 }
 
 export function subscribeToDonorDeliveries(donorId: string, callback: (deliveries: Delivery[]) => void): Unsubscribe {
-  // Query for deliveries where the donation is from this donor
-  const q = query(deliveriesCollection, where("donation.donor_id", "==", donorId));
+  const q = query(deliveriesCollection(), where("donation.donor_id", "==", donorId));
   return onSnapshot(q, (snapshot) => {
     callback(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Delivery)));
   }, (err) => {
@@ -286,26 +285,22 @@ export function subscribeToDonorDeliveries(donorId: string, callback: (deliverie
 
 // ─── Impact Stats ──────────────────────────────────────────────────────────────
 export function subscribeToImpactStats(callback: (stats: ImpactStats) => void): Unsubscribe {
-  const statsDoc = doc(statsCollection, "global");
+  const statsDoc = doc(statsCollection(), "global");
   return onSnapshot(statsDoc, (snapshot) => {
     if (snapshot.exists()) {
       callback(snapshot.data() as ImpactStats);
     } else {
-      // No stats doc - let the component use fallback values
-      // Don't compute live from collections (expensive on large datasets)
       console.warn("No global stats document found - using fallback values");
     }
   });
 }
 
 // ─── Matching Engine Trigger ───────────────────────────────────────────────────
-// Lazy-loaded to avoid bundling matching engine in initial load
 export async function triggerMatchingForDonation(donationId: string): Promise<void> {
   try {
-    // Lazy import - only loaded when a donation is actually created
     const { findBestMatchForDonationWithML, getMatchDistance } = await import("./matching-engine");
 
-    const donationDoc = await getDoc(doc(donationsCollection, donationId));
+    const donationDoc = await getDoc(doc(donationsCollection(), donationId));
     if (!donationDoc.exists()) return;
     const donation = { id: donationDoc.id, ...donationDoc.data() } as Donation;
 
@@ -341,4 +336,10 @@ export async function triggerMatchingForDonation(donationId: string): Promise<vo
   } catch (err) {
     console.error("Matching engine trigger error:", err);
   }
+}
+
+// ─── User helpers ──────────────────────────────────────────────────────────────
+export async function getUserById(uid: string) {
+  const snap = await getDoc(doc(usersCollection(), uid));
+  return snap.exists() ? { uid: snap.id, ...snap.data() } : null;
 }

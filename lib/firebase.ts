@@ -1,6 +1,11 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, initializeFirestore, Firestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  CACHE_SIZE_UNLIMITED,
+  type Firestore,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
@@ -14,25 +19,33 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase only if it hasn't been initialized yet
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
 
-// Initialize Firestore with settings only once
+// ─── Firestore ──────────────────────────────────────────────────────────────
+// We must guard against double-initialization during Next.js hot-reload.
+// If initializeFirestore was already called (app already has a Firestore
+// instance), we fall back to getFirestore which retrieves the existing one.
 let db: Firestore;
 try {
+  // experimentalAutoDetectLongPolling lets Firebase choose between
+  // WebSocket (fast, browser) and HTTP long-polling (stable, Node.js/dev).
+  // This eliminates the "GrpcConnection Write stream error" in Next.js.
   db = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
-  } as any);
-} catch (e) {
+    experimentalAutoDetectLongPolling: true,
+    cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+  });
+} catch {
+  // "Firestore has already been started" — retrieve the existing instance
   db = getFirestore(app);
 }
 
 export { db };
+
 export const storage = getStorage(app);
 
-let analytics = null;
+let analytics: ReturnType<typeof getAnalytics> | null = null;
 if (typeof window !== "undefined") {
   isSupported().then((supported) => {
     if (supported) {

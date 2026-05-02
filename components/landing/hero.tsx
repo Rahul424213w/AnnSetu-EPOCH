@@ -68,7 +68,7 @@ export function Hero() {
                   className="absolute right-4 lg:-right-8 top-1/2 md:top-auto md:bottom-4 w-32 h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 hidden sm:block z-10 pointer-events-none"
                 >
                 <div className="w-full h-full relative rounded-full overflow-hidden shadow-2xl border-4 border-white bg-[#FCFBF8]">
-                  <Image src="/logo.jpg" alt="AnnSetu Decorative Logo" fill className="object-cover" priority />
+                  <Image src="/logo.png" alt="AnnSetu Decorative Logo" fill className="object-cover" priority />
                 </div>
               </motion.div>
             </div>

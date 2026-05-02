@@ -1,0 +1,13 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "auth": {
+    "providers": {
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "AnnSetu",
+        "supportEmail": "rahulak424213w@gmail.com"
+      }
+    }
+  }
+}

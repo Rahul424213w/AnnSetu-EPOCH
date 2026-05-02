@@ -115,7 +115,7 @@ export default function AvailableDeliveriesPage() {
       isMounted = false;
       unsub();
     };
-  }, []);
+  }, [mlStatus.online]);
 
   const handleAccept = async (delivery: EnrichedDelivery) => {
     if (!user || !delivery.id) return;

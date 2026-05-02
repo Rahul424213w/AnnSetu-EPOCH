@@ -81,8 +81,13 @@ export default function DonatePage() {
 
     try {
       // 1. Upload image to Firebase Storage
+      // Demo users have no real Firebase Auth token → Storage rejects uploads.
+      // Use a placeholder so the rest of the flow works.
       let imageUrl = "";
-      if (imageFile) {
+      const isDemo = userProfile.uid.startsWith("demo-");
+      if (isDemo) {
+        imageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&q=80";
+      } else if (imageFile) {
         const storageRef = ref(storage, `donations/${userProfile.uid}_${Date.now()}_${imageFile.name}`);
         const uploadResult = await uploadBytes(storageRef, imageFile);
         imageUrl = await getDownloadURL(uploadResult.ref);

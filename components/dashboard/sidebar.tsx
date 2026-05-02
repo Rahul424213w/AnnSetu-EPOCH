@@ -71,7 +71,7 @@ export function DashboardSidebar({ role }: SidebarProps) {
           <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-6">
             <Link href="/" className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg overflow-hidden bg-white">
-                <Image src="/logo.jpg" alt="AnnSetu Logo" width={36} height={36} className="object-cover" />
+                <Image src="/logo.png" alt="AnnSetu Logo" width={36} height={36} className="object-cover" />
               </div>
               <span className="text-lg brand-name text-sidebar-foreground">अन्नSetu</span>
             </Link>

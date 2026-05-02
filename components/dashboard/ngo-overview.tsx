@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Search, CheckCircle, Clock, PlusCircle, Users, Loader2 } from "lucide-react";
+import { Search, CheckCircle, Clock, PlusCircle, Users, Loader2, Truck } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { subscribeToNGORequests, getMatchesByRequest, getDonationById } from "@/lib/firestore";
-import type { NGORequest, Match, Donation } from "@/lib/types";
+import type { NGORequest, Match, Donation, Delivery } from "@/lib/types";
 
 interface EnrichedMatch {
   match: Match;
@@ -23,10 +23,9 @@ export function NGOOverview() {
   useEffect(() => {
     if (!userProfile) return;
 
-    const unsubscribe = subscribeToNGORequests(userProfile.uid, async (items) => {
+    const unsubRequests = subscribeToNGORequests(userProfile.uid, async (items) => {
       setRequests(items);
 
-      // Enrich: fetch pending matches for all requests
       try {
         const requestIds = items.map((r) => r.id).filter(Boolean) as string[];
         const enriched: EnrichedMatch[] = [];
@@ -41,11 +40,12 @@ export function NGOOverview() {
       } catch (err) {
         console.error("Error enriching matches:", err);
       }
-
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubRequests();
+    };
   }, [userProfile]);
 
   const activeRequests = requests.filter((r) => r.status === "active").length;
@@ -77,6 +77,7 @@ export function NGOOverview() {
           </Link>
         </Button>
       </div>
+
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

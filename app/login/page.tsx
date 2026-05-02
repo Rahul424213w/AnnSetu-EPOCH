@@ -53,7 +53,7 @@ export default function LoginPage() {
         <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary">
           <Utensils className="h-6 w-6 text-primary-foreground" />
         </div>
-        <span className="text-2xl brand-name text-foreground">AnnSetu</span>
+        <span className="text-2xl brand-name text-foreground">अन्नSetu</span>
       </div>
 
       <Card className="w-full max-w-md border-border">

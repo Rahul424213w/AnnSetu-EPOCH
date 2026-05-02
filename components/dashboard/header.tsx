@@ -57,7 +57,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background px-4 lg:px-8">
       <div className="flex items-center gap-4">
-        <h1 className="text-lg brand-name text-foreground lg:hidden">AnnSetu</h1>
+        <h1 className="text-lg brand-name text-foreground lg:hidden">अन्नSetu</h1>
         <div className="hidden lg:block">
           <p className="text-sm text-muted-foreground">Welcome back,</p>
           <p className="font-medium text-foreground">{user.name}</p>

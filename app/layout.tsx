@@ -5,8 +5,8 @@ import { Toaster } from 'sonner'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'AnnSetu - Food Redistribution Platform',
-  description: 'AnnSetu is a real-time intelligent food redistribution platform connecting donors, NGOs, and volunteer riders to minimize food waste',
+  title: 'अन्नSetu - Food Redistribution Platform',
+  description: 'अन्नSetu is a real-time intelligent food redistribution platform connecting donors, NGOs, and volunteer riders to minimize food waste',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -33,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="bg-background">
+    <html lang="en" className="bg-background" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -42,7 +42,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-sans antialiased">
+      <body className="font-sans antialiased" suppressHydrationWarning>
         <AuthProvider>
           {children}
           <Toaster position="top-right" richColors />

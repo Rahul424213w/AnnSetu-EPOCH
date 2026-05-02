@@ -54,7 +54,7 @@ export function HowItWorks() {
           className="text-center mb-12"
         >
           <h2 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl text-balance">
-            How <span className="brand-name text-primary">AnnSetu</span> Works
+            How <span className="brand-name text-primary">अन्नSetu</span> Works
           </h2>
           <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto text-pretty">
             A simple, efficient process to connect surplus food with those who need it most.

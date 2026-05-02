@@ -135,7 +135,7 @@ export function ImpactDashboard() {
             Our Impact in Real-Time
           </h2>
           <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto text-pretty">
-            Every meal saved is a step towards zero food waste. AnnSetu connects surplus food with communities 
+            Every meal saved is a step towards zero food waste. अन्नSetu connects surplus food with communities 
             in need through intelligent matching and volunteer delivery networks across India.
           </p>
         </motion.div>

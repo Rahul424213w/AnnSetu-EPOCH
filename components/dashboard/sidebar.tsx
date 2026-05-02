@@ -34,6 +34,7 @@ const ngoLinks = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/request", label: "Add Request", icon: PlusCircle },
   { href: "/dashboard/matches", label: "View Matches", icon: Search },
+  { href: "/dashboard/active-deliveries", label: "Active Deliveries", icon: Truck },
   { href: "/dashboard/history", label: "History", icon: History },
 ];
 
@@ -72,7 +73,7 @@ export function DashboardSidebar({ role }: SidebarProps) {
               <div className="flex h-9 w-9 items-center justify-center rounded-lg overflow-hidden bg-white">
                 <Image src="/logo.jpg" alt="AnnSetu Logo" width={36} height={36} className="object-cover" />
               </div>
-              <span className="text-lg brand-name text-sidebar-foreground">AnnSetu</span>
+              <span className="text-lg brand-name text-sidebar-foreground">अन्नSetu</span>
             </Link>
           </div>
 

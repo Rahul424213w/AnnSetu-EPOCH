@@ -71,7 +71,7 @@ function SignupForm() {
       <CardHeader className="text-center">
         <CardTitle className="text-2xl text-foreground">Create Account</CardTitle>
         <CardDescription className="text-muted-foreground">
-          Join AnnSetu and start making a difference
+          Join अन्नSetu and start making a difference
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -205,7 +205,7 @@ export default function SignupPage() {
         <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary">
           <Utensils className="h-6 w-6 text-primary-foreground" />
         </div>
-        <span className="text-2xl brand-name text-foreground">AnnSetu</span>
+        <span className="text-2xl brand-name text-foreground">अन्नSetu</span>
       </div>
 
       <Suspense fallback={<div className="text-muted-foreground">Loading...</div>}>

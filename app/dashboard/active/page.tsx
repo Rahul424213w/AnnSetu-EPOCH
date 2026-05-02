@@ -8,8 +8,10 @@ import { Clock, MapPin, Package, Truck, CheckCircle, Loader2 } from "lucide-reac
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { DeliveryTracker } from "@/components/dashboard/delivery-tracker";
-import { getDonationsByDonor, getRequestsByNGO, subscribeToVolunteerDeliveries } from "@/lib/firestore";
+import { LiveTracker } from "@/components/dashboard/live-tracker";
+import { getDonationsByDonor, getRequestsByNGO, subscribeToVolunteerDeliveries, subscribeToDonorDeliveries } from "@/lib/firestore";
 import type { Donation, NGORequest, Delivery } from "@/lib/types";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const statusConfig = {
   active: { label: "Awaiting Match", color: "bg-accent/10 text-accent-foreground border border-accent/20", icon: Clock },
@@ -23,7 +25,7 @@ export default function ActiveDonationsPage() {
   const { userProfile } = useAuth();
 
   const [activeItems, setActiveItems] = useState<any[]>([]);
-  const [volunteerDeliveries, setVolunteerDeliveries] = useState<Delivery[]>([]);
+  const [activeDeliveries, setActiveDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
@@ -31,30 +33,28 @@ export default function ActiveDonationsPage() {
     if (!userProfile) return;
 
     if (userProfile.role === "volunteer") {
-      // Real-time listener for volunteer deliveries
       const unsubscribe = subscribeToVolunteerDeliveries(userProfile.uid, (deliveries) => {
-        setVolunteerDeliveries(deliveries.filter((d) => d.delivery_status !== "delivered"));
+        setActiveDeliveries(deliveries.filter((d) => d.delivery_status !== "delivered"));
         setLoading(false);
       });
       unsubscribeRef.current = unsubscribe;
-    } else {
-      // One-shot fetch for donor/NGO
-      async function loadData() {
-        try {
-          if (userProfile!.role === "donor") {
-            const items = await getDonationsByDonor(userProfile!.uid);
-            setActiveItems(items.filter((d: any) => !["delivered", "expired"].includes(d.status)));
-          } else if (userProfile!.role === "ngo") {
-            const items = await getRequestsByNGO(userProfile!.uid);
-            setActiveItems(items.filter((r: any) => !["fulfilled", "cancelled"].includes(r.status)));
-          }
-        } catch (err) {
-          console.error("Failed to load active items", err);
-        } finally {
-          setLoading(false);
-        }
-      }
-      loadData();
+    } else if (userProfile.role === "donor") {
+      const unsubscribe = subscribeToDonorDeliveries(userProfile.uid, (deliveries) => {
+        setActiveDeliveries(deliveries.filter((d) => d.delivery_status !== "delivered"));
+        setLoading(false);
+      });
+      unsubscribeRef.current = unsubscribe;
+      
+      // Also fetch donations (not in real-time for now to keep it simple, or could use another listener)
+      getDonationsByDonor(userProfile.uid).then(items => {
+        setActiveItems(items.filter((d: any) => !["delivered", "expired"].includes(d.status)));
+      });
+    } else if (userProfile.role === "ngo") {
+      // For NGO, we now have a dedicated page, but let's keep this functional too
+      getRequestsByNGO(userProfile.uid).then(items => {
+        setActiveItems(items.filter((r: any) => !["fulfilled", "cancelled"].includes(r.status)));
+        setLoading(false);
+      });
     }
 
     return () => {
@@ -100,10 +100,9 @@ export default function ActiveDonationsPage() {
 
   // Volunteer view with delivery tracker
   if (isVolunteer) {
-    // Show the most recent active (non-delivered) delivery
-    const activeVolunteerDelivery = volunteerDeliveries.find(
+    const activeDelivery = activeDeliveries.find(
       (d) => d.delivery_status !== "delivered" && d.delivery_status !== "pending"
-    ) || volunteerDeliveries[0];
+    ) || activeDeliveries[0];
 
     return (
       <div className="space-y-6 pb-20 lg:pb-0">
@@ -112,26 +111,25 @@ export default function ActiveDonationsPage() {
           <p className="text-muted-foreground">Track and manage your current delivery task</p>
         </div>
 
-        {!activeVolunteerDelivery ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <CheckCircle className="h-12 w-12 text-primary mb-4" />
-              <h3 className="text-lg font-semibold text-foreground">No active deliveries</h3>
-              <p className="text-muted-foreground text-center mt-2">
-                You don&apos;t have any active deliveries right now.
-              </p>
-              <Button asChild className="mt-4">
+        {!activeDelivery ? (
+          <EmptyState
+            icon={CheckCircle}
+            title="No active deliveries"
+            description="You don't have any active deliveries right now."
+            action={
+              <Button asChild>
                 <Link href="/dashboard/available">Find Deliveries</Link>
               </Button>
-            </CardContent>
-          </Card>
+            }
+          />
         ) : (
           <DeliveryTracker
-            delivery={activeVolunteerDelivery}
+            delivery={activeDelivery}
+            userRole="volunteer"
             onStatusUpdate={(updated) => {
-              setVolunteerDeliveries((prev) =>
+              setActiveDeliveries((prev) =>
                 prev.map((d) =>
-                  d.id === activeVolunteerDelivery.id ? { ...d, ...updated } : d
+                  d.id === activeDelivery.id ? { ...d, ...updated } : d
                 )
               );
             }}
@@ -159,23 +157,36 @@ export default function ActiveDonationsPage() {
         )}
       </div>
 
-      {activeItems.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Package className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold text-foreground">
-              No active {isDonor ? "donations" : "requests"}
-            </h3>
-            <p className="text-muted-foreground text-center mt-2">
-              You don&apos;t have any active {isDonor ? "donations" : "requests"} right now.
-            </p>
-            <Button asChild className="mt-4">
+      {/* Show active delivery tracker if donor has a delivery in progress */}
+      {isDonor && activeDeliveries.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-black text-foreground tracking-tight flex items-center gap-2">
+            <Truck className="h-5 w-5 text-primary" />
+            Live Tracking
+          </h2>
+          {activeDeliveries.map(delivery => (
+            <LiveTracker 
+              key={delivery.id} 
+              delivery={delivery} 
+              userRole="donor"
+            />
+          ))}
+        </div>
+      )}
+
+      {activeItems.length === 0 && activeDeliveries.length === 0 ? (
+        <EmptyState
+          icon={Package}
+          title={`No active ${isDonor ? "donations" : "requests"}`}
+          description={`You don't have any active ${isDonor ? "donations" : "requests"} right now.`}
+          action={
+            <Button asChild>
               <Link href={isDonor ? "/dashboard/donate" : "/dashboard/request"}>
                 Create {isDonor ? "Donation" : "Request"}
               </Link>
             </Button>
-          </CardContent>
-        </Card>
+          }
+        />
       ) : (
         <div className="grid gap-4">
           {activeItems.map((item) => {
@@ -212,12 +223,11 @@ export default function ActiveDonationsPage() {
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Expires</span>
                         <span
-                          className={`font-medium ${
-                            item.expiry_time.toDate &&
-                            item.expiry_time.toDate().getTime() - Date.now() < 3 * 60 * 60 * 1000
+                          className={`font-medium ${item.expiry_time.toDate &&
+                              item.expiry_time.toDate().getTime() - Date.now() < 3 * 60 * 60 * 1000
                               ? "text-destructive"
                               : "text-foreground"
-                          }`}
+                            }`}
                         >
                           {formatTimeLeft(item.expiry_time)}
                         </span>

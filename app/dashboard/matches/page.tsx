@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Clock, MapPin, Store, Package, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getRequestsByNGO, getMatchesByRequest, getDonationById, updateMatch, createDelivery } from "@/lib/firestore";
@@ -199,15 +200,11 @@ export default function MatchesPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
           ) : pendingMatches.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <Package className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium text-foreground">No pending matches</h3>
-                <p className="text-muted-foreground text-center mt-2">
-                  New matches will appear here based on your active requests.
-                </p>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={Package}
+              title="No pending matches"
+              description="New matches will appear here based on your active requests."
+            />
           ) : (
             <div className="grid gap-4">
               {pendingMatches.map((match) => (
@@ -284,15 +281,11 @@ export default function MatchesPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
           ) : acceptedMatches.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <CheckCircle className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium text-foreground">No accepted matches</h3>
-                <p className="text-muted-foreground text-center mt-2">
-                  Accepted donations being delivered will appear here.
-                </p>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={CheckCircle}
+              title="No accepted matches"
+              description="Accepted donations being delivered will appear here."
+            />
           ) : (
             <div className="grid gap-4">
               {acceptedMatches.map((match) => (

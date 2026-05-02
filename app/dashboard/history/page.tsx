@@ -102,15 +102,11 @@ export default function HistoryPage() {
       </div>
 
       {historyItems.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Package className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium text-foreground">No history yet</h3>
-            <p className="text-muted-foreground text-center mt-2">
-              Your completed {isDonor ? "donations" : isNGO ? "requests" : "deliveries"} will appear here.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Package}
+          title="No history yet"
+          description={`Your completed ${isDonor ? "donations" : isNGO ? "requests" : "deliveries"} will appear here.`}
+        />
       ) : (
         <div className="space-y-3">
           {historyItems.map((item) => {

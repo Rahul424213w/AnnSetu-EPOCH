@@ -31,7 +31,7 @@ export function Header() {
           <div className="flex h-10 w-10 items-center justify-center rounded-lg overflow-hidden bg-white">
             <Image src="/logo.jpg" alt="AnnSetu Logo" width={40} height={40} className="object-cover" priority />
           </div>
-          <span className="text-xl brand-name text-foreground">AnnSetu</span>
+          <span className="text-xl brand-name text-foreground">अन्नSetu</span>
         </Link>
 
         {/* Desktop Navigation */}

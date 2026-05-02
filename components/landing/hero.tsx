@@ -74,7 +74,7 @@ export function Hero() {
             </div>
 
             <motion.p variants={itemVariants} className="mt-6 text-lg text-muted-foreground md:text-xl text-pretty lg:mx-0 mx-auto max-w-xl leading-relaxed">
-              AnnSetu is an intelligent food redistribution platform that connects restaurants, vendors,
+              अन्नSetu is an intelligent food redistribution platform that connects restaurants, vendors,
               and donors with NGOs and communities in need — powered by real-time matching and volunteer delivery.
             </motion.p>
 

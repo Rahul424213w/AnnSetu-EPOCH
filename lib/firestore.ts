@@ -262,6 +262,28 @@ export function subscribeToAvailableDeliveries(callback: (deliveries: Delivery[]
   });
 }
 
+export function subscribeToNGODeliveries(ngoId: string, callback: (deliveries: Delivery[]) => void): Unsubscribe {
+  // Query for deliveries where the request is from this NGO
+  const q = query(deliveriesCollection, where("request.ngo_id", "==", ngoId));
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Delivery)));
+  }, (err) => {
+    console.error("subscribeToNGODeliveries error:", err);
+    callback([]);
+  });
+}
+
+export function subscribeToDonorDeliveries(donorId: string, callback: (deliveries: Delivery[]) => void): Unsubscribe {
+  // Query for deliveries where the donation is from this donor
+  const q = query(deliveriesCollection, where("donation.donor_id", "==", donorId));
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Delivery)));
+  }, (err) => {
+    console.error("subscribeToDonorDeliveries error:", err);
+    callback([]);
+  });
+}
+
 // ─── Impact Stats ──────────────────────────────────────────────────────────────
 export function subscribeToImpactStats(callback: (stats: ImpactStats) => void): Unsubscribe {
   const statsDoc = doc(statsCollection, "global");

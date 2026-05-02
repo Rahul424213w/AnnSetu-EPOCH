@@ -76,6 +76,8 @@ export interface Delivery {
   ml_priority?: "HIGH" | "MEDIUM" | "LOW";
   created_at: Timestamp;
   updated_at: Timestamp;
+  current_location?: Location;
+  eta?: string;
 }
 
 // ─── ML Prediction Types ────────────────────────────────────────────────────────

@@ -22,11 +22,11 @@ export const auth = getAuth(app);
 // Initialize Firestore with settings only once
 let db: Firestore;
 try {
-  db = getFirestore(app);
-} catch (e) {
   db = initializeFirestore(app, {
     experimentalForceLongPolling: true,
   } as any);
+} catch (e) {
+  db = getFirestore(app);
 }
 
 export { db };

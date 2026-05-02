@@ -26,7 +26,7 @@ const donationOptions = [
     details: {
       tagline: "Your ₹50 can fill a plate and a heart.",
       message: "Every meal we serve is freshly prepared and nutritionally balanced. Your contribution goes directly towards procuring ingredients and supporting local community kitchens that prepare these meals for the underprivileged.",
-      accountName: "AnnSetu Meals Relief Fund",
+      accountName: "अन्नSetu Meals Relief Fund",
       accountNumber: "1234 5678 9012",
       ifsc: "SETU0000123",
       upi: "meals@annsetu"
@@ -41,7 +41,7 @@ const donationOptions = [
     details: {
       tagline: "Be the bridge between surplus and hunger.",
       message: "Our logistics network is the backbone of food redistribution. Your donation covers fuel reimbursements for volunteers, electric van charging, and maintaining the cold-chain integrity of sensitive food items.",
-      accountName: "AnnSetu Logistics & Operations",
+      accountName: "अन्नSetu Logistics & Operations",
       accountNumber: "9876 5432 1098",
       ifsc: "SETU0000987",
       upi: "delivery@annsetu"
@@ -55,8 +55,8 @@ const donationOptions = [
     action: "Donate Any Amount",
     details: {
       tagline: "Even ₹1 is a step towards zero hunger.",
-      message: "General donations empower us to build smarter matching algorithms, scale our platform to new cities, and cover essential administrative costs that keep the AnnSetu ecosystem running 24/7.",
-      accountName: "AnnSetu Foundation",
+      message: "General donations empower us to build smarter matching algorithms, scale our platform to new cities, and cover essential administrative costs that keep the अन्नSetu ecosystem running 24/7.",
+      accountName: "अन्नSetu Foundation",
       accountNumber: "5566 7788 9900",
       ifsc: "SETU0000555",
       upi: "donate@annsetu"

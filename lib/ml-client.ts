@@ -10,6 +10,10 @@ import type {
   NGORequest,
 } from "./types";
 
+export interface MLPredictionOutputWithFlag extends MLPredictionOutput {
+  isRealPrediction: boolean;
+}
+
 const isBrowser = typeof window !== "undefined";
 
 // In the browser we always call same-origin Next.js proxies to avoid CORS
@@ -109,7 +113,7 @@ export async function extractMLFeatures(
  */
 export async function predictPriority(
   input: MLPredictionInput
-): Promise<MLPredictionOutput> {
+): Promise<MLPredictionOutputWithFlag> {
   try {
     const res = await fetchWithTimeout(mlUrl("/predict"), {
       method: "POST",
@@ -123,10 +127,11 @@ export async function predictPriority(
     return {
       ml_score: data.score ?? data.ml_score ?? 0.5,
       priority: data.priority ?? "MEDIUM",
+      isRealPrediction: true,
     };
   } catch (err) {
     console.warn("ML API unavailable, using heuristic fallback:", err);
-    return heuristicFallback(input);
+    return { ...heuristicFallback(input), isRealPrediction: false };
   }
 }
 

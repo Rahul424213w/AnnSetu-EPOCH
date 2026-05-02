@@ -14,10 +14,11 @@ import { subscribeToAvailableDeliveries, acceptDelivery } from "@/lib/firestore"
 import { checkMLHealth } from "@/lib/ml-client";
 import type { Delivery, MLPredictionOutput } from "@/lib/types";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // Extended delivery with ML enrichment
 interface EnrichedDelivery extends Delivery {
-  eta?: { distanceKm: number; etaMinutes: number; trafficLevel: string };
+  etaData?: { distanceKm: number; etaMinutes: number; trafficLevel: string };
   spoilage?: { risk: string; score: number };
   mlPrediction?: MLPredictionOutput;
 }
@@ -69,14 +70,14 @@ export default function AvailableDeliveriesPage() {
         const d = delivery.donation;
         const r = delivery.request;
 
-        let eta;
+        let etaData;
         let spoilage;
         let mlPrediction: MLPredictionOutput | undefined;
 
         if (d?.location && r?.location) {
           // Synchronous calculations only - no async ML calls on every snapshot
-          eta = calculateETA(d.location.lat, d.location.lng, r.location.lat, r.location.lng, d.quantity);
-          spoilage = calculateSpoilageRisk(d.food_type || "packaged", eta.etaMinutes);
+          etaData = calculateETA(d.location.lat, d.location.lng, r.location.lat, r.location.lng, d.quantity);
+          spoilage = calculateSpoilageRisk(d.food_type || "packaged", etaData.etaMinutes);
 
           // Use stored ML score - don't call ML API on every real-time update
           if (delivery.ml_score !== undefined) {
@@ -87,14 +88,21 @@ export default function AvailableDeliveriesPage() {
           }
         }
 
-        return { ...delivery, eta, spoilage, mlPrediction };
+        return { ...delivery, etaData, spoilage, mlPrediction };
       });
 
-      // Sort by stored ML score only (no async calls)
+      // Sort by ML score if available and online, otherwise by creation date
       enriched.sort((a, b) => {
-        const scoreA = a.ml_score ?? 0;
-        const scoreB = b.ml_score ?? 0;
-        return scoreB - scoreA;
+        if (mlStatus.online) {
+          const scoreA = a.ml_score ?? 0;
+          const scoreB = b.ml_score ?? 0;
+          if (scoreA !== scoreB) return scoreB - scoreA;
+        }
+        
+        // Fallback: sort by creation time (newest first)
+        const timeA = a.created_at?.seconds || 0;
+        const timeB = b.created_at?.seconds || 0;
+        return timeB - timeA;
       });
 
       if (isMounted) {
@@ -159,24 +167,24 @@ export default function AvailableDeliveriesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Brain className="h-6 w-6 text-primary" />
-            ML-Powered Deliveries
+            {mlStatus.online && <Brain className="h-6 w-6 text-primary" />}
+            {mlStatus.online ? "ML-Powered Deliveries" : "Available Deliveries"}
           </h1>
           <p className="text-muted-foreground">
-            AI-prioritised deliveries — highest impact shown first
+            {mlStatus.online 
+              ? "AI-prioritised deliveries — highest impact shown first" 
+              : "List of all available food delivery tasks"}
           </p>
         </div>
 
         {/* ML Status + Traffic */}
         <div className="flex items-center gap-3">
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
-            mlStatus.online
-              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-              : "bg-red-500/10 text-red-400 border-red-500/30"
-          }`}>
-            <Activity className="h-3 w-3" />
-            ML {mlStatus.online ? "Online" : "Offline"}
-          </div>
+          {mlStatus.online && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+              <Activity className="h-3 w-3" />
+              ML Online
+            </div>
+          )}
           <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
             traffic.level === "Heavy" || traffic.level === "Severe"
               ? "bg-red-500/10 text-red-400 border-red-500/30"
@@ -200,15 +208,11 @@ export default function AvailableDeliveriesPage() {
           <p className="text-sm text-muted-foreground">Scoring deliveries with ML model…</p>
         </div>
       ) : deliveries.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Package className="h-14 w-14 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-semibold text-foreground">No deliveries available</h3>
-            <p className="text-muted-foreground text-center mt-2 max-w-md">
-              New donation matches will appear here, scored and ranked by our ML priority model.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Package}
+          title="No deliveries available"
+          description="New donation matches will appear here, scored and ranked by our ML priority model."
+        />
       ) : (
         <div className="grid gap-4">
           {deliveries.map((delivery, idx) => {
@@ -221,7 +225,7 @@ export default function AvailableDeliveriesPage() {
                 className={`relative overflow-hidden transition-all hover:shadow-lg hover:shadow-primary/5 border-border/50`}
               >
                 {/* Priority gradient bar */}
-                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${getScoreGradient(mlScore)}`} />
+                {mlStatus.online && <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${getScoreGradient(mlScore)}`} />}
 
                 <CardHeader className="pb-3 pt-5">
                   <div className="flex items-start justify-between gap-4">
@@ -242,13 +246,13 @@ export default function AvailableDeliveriesPage() {
 
                     {/* ML Priority Badge */}
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      {priority && (
+                      {mlStatus.online && priority && (
                         <Badge className={`${getPriorityColor(priority)} border text-xs font-semibold`}>
                           <Zap className="h-3 w-3 mr-1" />
                           {priority}
                         </Badge>
                       )}
-                      {mlScore !== undefined && (
+                      {mlStatus.online && mlScore !== undefined && (
                         <span className="text-xs text-muted-foreground font-mono">
                           ML: {(mlScore * 100).toFixed(0)}%
                         </span>
@@ -276,10 +280,10 @@ export default function AvailableDeliveriesPage() {
                       <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">ETA</p>
                       <p className="text-sm font-semibold text-foreground flex items-center gap-1">
                         <Timer className="h-3.5 w-3.5 text-primary" />
-                        {delivery.eta ? `${delivery.eta.etaMinutes} min` : "—"}
+                        {delivery.etaData ? `${delivery.etaData.etaMinutes} min` : "—"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {delivery.eta?.distanceKm || delivery.distance || 0} km
+                        {delivery.etaData?.distanceKm || delivery.distance || 0} km
                       </p>
                     </div>
 
@@ -312,7 +316,7 @@ export default function AvailableDeliveriesPage() {
                   </div>
 
                   {/* ML Score Bar */}
-                  {mlScore !== undefined && (
+                  {mlStatus.online && mlScore !== undefined && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground flex items-center gap-1">

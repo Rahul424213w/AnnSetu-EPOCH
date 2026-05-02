@@ -8,7 +8,7 @@ const testimonials = [
   {
     name: "Priya Sharma",
     role: "Restaurant Owner, Mumbai",
-    quote: "AnnSetu made it incredibly easy for us to donate surplus food from our restaurant every evening. Instead of throwing away perfectly good meals, we now feed 50+ people daily through local NGOs.",
+    quote: "अन्नSetu made it incredibly easy for us to donate surplus food from our restaurant every evening. Instead of throwing away perfectly good meals, we now feed 50+ people daily through local NGOs.",
     rating: 5,
     avatar: "PS",
     color: "bg-blue-500/10 text-blue-500",
@@ -24,7 +24,7 @@ const testimonials = [
   {
     name: "Ananya Gupta",
     role: "Volunteer Rider, Bangalore",
-    quote: "As a college student, volunteering with AnnSetu fits my schedule perfectly. The app works just like Swiggy — I pick up food from donors and deliver it to NGOs. It feels amazing to make a difference!",
+    quote: "As a college student, volunteering with अन्नSetu fits my schedule perfectly. The app works just like Swiggy — I pick up food from donors and deliver it to NGOs. It feels amazing to make a difference!",
     rating: 5,
     avatar: "AG",
     color: "bg-orange-500/10 text-orange-500",

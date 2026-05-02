@@ -50,10 +50,15 @@ export default function ActiveDonationsPage() {
         setActiveItems(items.filter((d: any) => !["delivered", "expired"].includes(d.status)));
       });
     } else if (userProfile.role === "ngo") {
-      // For NGO, we now have a dedicated page, but let's keep this functional too
-      getRequestsByNGO(userProfile.uid).then(items => {
-        setActiveItems(items.filter((r: any) => !["fulfilled", "cancelled"].includes(r.status)));
+      const unsubscribe = subscribeToNGODeliveries(userProfile.uid, (deliveries) => {
+        setActiveDeliveries(deliveries.filter((d) => d.delivery_status !== "delivered"));
         setLoading(false);
+      });
+      unsubscribeRef.current = unsubscribe;
+      
+      // Also fetch requests
+      getRequestsByNGO(userProfile.uid).then(items => {
+        setActiveItems(items.filter((r: any) => !["completed", "cancelled"].includes(r.status)));
       });
     }
 

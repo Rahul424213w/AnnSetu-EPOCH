@@ -66,10 +66,10 @@ export default function HistoryPage() {
   }
 
   // Calculate summary stats dynamically
-  const completedCount = historyItems.filter(i => i.status === "delivered" || i.delivery_status === "delivered" || i.status === "fulfilled").length;
+  const completedCount = historyItems.filter(i => i.status === "delivered" || i.delivery_status === "delivered" || i.status === "completed").length;
   
   const totalAmount = historyItems.reduce((acc, i) => {
-    const isComplete = i.status === "delivered" || i.delivery_status === "delivered" || i.status === "fulfilled";
+    const isComplete = i.status === "delivered" || i.delivery_status === "delivered" || i.status === "completed";
     if (isComplete) {
       // For volunteer deliveries, use nested donation quantity
       if (userProfile?.role === "volunteer") {
@@ -126,7 +126,7 @@ export default function HistoryPage() {
               itemSubtitle = item.status === "delivered" ? "Successfully delivered" : item.status === "expired" ? "Food expired" : "Cancelled";
             } else if (isNGO) {
               itemTitle = `${(item.food_type || "Food").replace("-", " ")} — ${item.quantity || 0} meals`;
-              itemSubtitle = item.status === "fulfilled" || item.status === "delivered"
+              itemSubtitle = item.status === "completed" || item.status === "delivered"
                 ? `Received for ${item.people_count || 0} people`
                 : "Request cancelled";
             } else {

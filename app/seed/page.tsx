@@ -23,7 +23,7 @@ const DEMO_USERS = [
   {
     uid: "demo-donor",
     email: "demo-donor@annsetu.org",
-    name: "Taj West End",
+    name: "Green Cafe",
     role: "donor",
     phone: "+91 9876543210",
     location: { lat: 12.9817, lng: 77.5816 },
@@ -47,7 +47,7 @@ const DEMO_USERS = [
   {
     uid: "demo-ngo",
     email: "demo-ngo@annsetu.org",
-    name: "Robin Hood Army",
+    name: "Hope Foundation",
     role: "ngo",
     phone: "+91 9876543211",
     location: { lat: 12.9352, lng: 77.6245 },
@@ -104,7 +104,7 @@ function hoursAgo(h: number) {
 const SEED_DONATIONS = [
   {
     donor_id: "demo-donor",
-    donor_name: "Taj West End",
+    donor_name: "Green Cafe",
     food_type: "veg",
     quantity: 50,
     quantity_unit: "meals",
@@ -146,7 +146,7 @@ const SEED_DONATIONS = [
   },
   {
     donor_id: "demo-donor",
-    donor_name: "Taj West End",
+    donor_name: "Green Cafe",
     food_type: "non-veg",
     quantity: 30,
     quantity_unit: "meals",
@@ -174,7 +174,7 @@ const SEED_DONATIONS = [
   },
   {
     donor_id: "demo-donor",
-    donor_name: "Taj West End",
+    donor_name: "Green Cafe",
     food_type: "veg",
     quantity: 200,
     quantity_unit: "meals",
@@ -188,7 +188,7 @@ const SEED_DONATIONS = [
   },
   {
     donor_id: "demo-donor",
-    donor_name: "Taj West End",
+    donor_name: "Green Cafe",
     food_type: "non-veg",
     quantity: 50,
     quantity_unit: "meals",
@@ -200,12 +200,82 @@ const SEED_DONATIONS = [
     status: "delivered",
     created_at: hoursAgo(49),
   },
+  {
+    donor_id: "demo-donor",
+    donor_name: "Green Cafe",
+    food_type: "veg",
+    quantity: 40,
+    quantity_unit: "meals",
+    expiry_time: hoursFromNow(8),
+    pickup_window_start: hoursFromNow(2),
+    pickup_window_end: hoursFromNow(5),
+    packaging_condition: "good",
+    location: { lat: 12.9817, lng: 77.5816, address: "Race Course Road, Bangalore" },
+    status: "matched",
+    created_at: hoursAgo(0.5),
+  },
+  {
+    donor_id: "demo-donor-2",
+    donor_name: "Corner House Ice Cream",
+    food_type: "packaged",
+    quantity: 10,
+    quantity_unit: "kg",
+    expiry_time: hoursFromNow(12),
+    pickup_window_start: hoursFromNow(1),
+    pickup_window_end: hoursFromNow(3),
+    packaging_condition: "excellent",
+    location: { lat: 12.9783, lng: 77.5900, address: "Residency Road, Bangalore" },
+    status: "matched",
+    created_at: hoursAgo(1),
+  },
+  {
+    donor_id: "demo-donor-5",
+    donor_name: "MTR",
+    food_type: "veg",
+    quantity: 80,
+    quantity_unit: "meals",
+    expiry_time: hoursFromNow(4),
+    pickup_window_start: hoursFromNow(0),
+    pickup_window_end: hoursFromNow(2),
+    packaging_condition: "good",
+    location: { lat: 12.9538, lng: 77.5871, address: "Lalbagh Road, Bangalore" },
+    status: "active",
+    created_at: hoursAgo(0.2),
+  },
+  {
+    donor_id: "demo-donor-6",
+    donor_name: "Meghana Foods",
+    food_type: "non-veg",
+    quantity: 150,
+    quantity_unit: "meals",
+    expiry_time: hoursFromNow(6),
+    pickup_window_start: hoursFromNow(1),
+    pickup_window_end: hoursFromNow(4),
+    packaging_condition: "excellent",
+    location: { lat: 12.9344, lng: 77.6115, address: "Koramangala 5th Block, Bangalore" },
+    status: "matched",
+    created_at: hoursAgo(1.2),
+  },
+  {
+    donor_id: "demo-donor-7",
+    donor_name: "Empire Restaurant",
+    food_type: "non-veg",
+    quantity: 100,
+    quantity_unit: "meals",
+    expiry_time: hoursFromNow(8),
+    pickup_window_start: hoursFromNow(2),
+    pickup_window_end: hoursFromNow(6),
+    packaging_condition: "good",
+    location: { lat: 12.9719, lng: 77.6012, address: "Church Street, Bangalore" },
+    status: "active",
+    created_at: hoursAgo(0.5),
+  },
 ];
 
 const SEED_REQUESTS = [
   {
     ngo_id: "demo-ngo",
-    ngo_name: "Robin Hood Army",
+    ngo_name: "Hope Foundation",
     food_type: "veg",
     quantity: 100,
     people_count: 200,
@@ -233,7 +303,7 @@ const SEED_REQUESTS = [
   },
   {
     ngo_id: "demo-ngo",
-    ngo_name: "Robin Hood Army",
+    ngo_name: "Hope Foundation",
     food_type: "veg",
     quantity: 120,
     people_count: 240,
@@ -261,7 +331,7 @@ const SEED_REQUESTS = [
   },
   {
     ngo_id: "demo-ngo",
-    ngo_name: "Robin Hood Army",
+    ngo_name: "Hope Foundation",
     food_type: "non-veg",
     quantity: 30,
     people_count: 60,
@@ -275,7 +345,7 @@ const SEED_REQUESTS = [
   },
   {
     ngo_id: "demo-ngo",
-    ngo_name: "Robin Hood Army",
+    ngo_name: "Hope Foundation",
     food_type: "veg",
     quantity: 200,
     people_count: 400,
@@ -284,12 +354,12 @@ const SEED_REQUESTS = [
     time_window_end: hoursAgo(2),
     storage_capability: true,
     location: { lat: 12.9352, lng: 77.6245, address: "Koramangala 4th Block, Bangalore" },
-    status: "fulfilled",
+    status: "completed",
     created_at: hoursAgo(24),
   },
   {
     ngo_id: "demo-ngo",
-    ngo_name: "Robin Hood Army",
+    ngo_name: "Hope Foundation",
     food_type: "non-veg",
     quantity: 50,
     people_count: 100,
@@ -298,8 +368,78 @@ const SEED_REQUESTS = [
     time_window_end: hoursAgo(46),
     storage_capability: false,
     location: { lat: 12.9352, lng: 77.6245, address: "Koramangala 4th Block, Bangalore" },
-    status: "fulfilled",
+    status: "completed",
     created_at: hoursAgo(49),
+  },
+  {
+    ngo_id: "demo-ngo",
+    ngo_name: "Hope Foundation",
+    food_type: "veg",
+    quantity: 40,
+    people_count: 80,
+    urgency: "medium",
+    time_window_start: hoursFromNow(1),
+    time_window_end: hoursFromNow(6),
+    storage_capability: true,
+    location: { lat: 12.9352, lng: 77.6245, address: "Koramangala 4th Block, Bangalore" },
+    status: "matched",
+    created_at: hoursAgo(1),
+  },
+  {
+    ngo_id: "demo-ngo-2",
+    ngo_name: "Akshaya Patra Foundation",
+    food_type: "packaged",
+    quantity: 20,
+    people_count: 50,
+    urgency: "low",
+    time_window_start: hoursFromNow(0),
+    time_window_end: hoursFromNow(5),
+    storage_capability: true,
+    location: { lat: 12.9450, lng: 77.5800, address: "Jayanagar 4th Block, Bangalore" },
+    status: "matched",
+    created_at: hoursAgo(1.5),
+  },
+  {
+    ngo_id: "demo-ngo-3",
+    ngo_name: "Goonj Bangalore",
+    food_type: "veg",
+    quantity: 100,
+    people_count: 200,
+    urgency: "high",
+    time_window_start: hoursFromNow(0),
+    time_window_end: hoursFromNow(4),
+    storage_capability: false,
+    location: { lat: 12.9100, lng: 77.6300, address: "Sarjapur Main Road, Bangalore" },
+    status: "active",
+    created_at: hoursAgo(0.5),
+  },
+  {
+    ngo_id: "demo-ngo",
+    ngo_name: "Hope Foundation",
+    food_type: "non-veg",
+    quantity: 150,
+    people_count: 300,
+    urgency: "high",
+    time_window_start: hoursFromNow(0),
+    time_window_end: hoursFromNow(5),
+    storage_capability: false,
+    location: { lat: 12.9352, lng: 77.6245, address: "Koramangala 4th Block, Bangalore" },
+    status: "matched",
+    created_at: hoursAgo(2),
+  },
+  {
+    ngo_id: "demo-ngo-2",
+    ngo_name: "Akshaya Patra Foundation",
+    food_type: "non-veg",
+    quantity: 80,
+    people_count: 160,
+    urgency: "medium",
+    time_window_start: hoursFromNow(1),
+    time_window_end: hoursFromNow(6),
+    storage_capability: true,
+    location: { lat: 12.9450, lng: 77.5800, address: "Jayanagar 4th Block, Bangalore" },
+    status: "active",
+    created_at: hoursAgo(1),
   },
 ];
 
@@ -419,6 +559,36 @@ export default function SeedPage() {
         status: "completed",
         created_at: hoursAgo(49),
       });
+
+      const match6 = await addDoc(collection(db, "matches"), {
+        donation_id: donationIds[7],
+        request_id: requestIds[7],
+        score: 85,
+        ml_score: 0.86,
+        ml_priority: "MEDIUM",
+        status: "accepted",
+        created_at: hoursAgo(0.4),
+      });
+
+      const match7 = await addDoc(collection(db, "matches"), {
+        donation_id: donationIds[8],
+        request_id: requestIds[8],
+        score: 91,
+        ml_score: 0.93,
+        ml_priority: "HIGH",
+        status: "accepted",
+        created_at: hoursAgo(0.9),
+      });
+
+      const match8 = await addDoc(collection(db, "matches"), {
+        donation_id: donationIds[10],
+        request_id: requestIds[10],
+        score: 78,
+        ml_score: 0.81,
+        ml_priority: "MEDIUM",
+        status: "accepted",
+        created_at: hoursAgo(1.1),
+      });
       addLog("✅ Matches seeded");
 
       // 6. Create deliveries
@@ -524,12 +694,60 @@ export default function SeedPage() {
         updated_at: hoursAgo(47),
       });
 
-      addLog("✅ 5 deliveries seeded with live tracking data");
+      // Delivery 6: Pending Task (Available Delivery)
+      await addDoc(collection(db, "deliveries"), {
+        match_id: match6.id,
+        donation: { ...SEED_DONATIONS[7], id: donationIds[7] },
+        request: { ...SEED_REQUESTS[7], id: requestIds[7] },
+        pickup_status: "pending",
+        delivery_status: "pending",
+        pickup_otp: generateOTP(),
+        delivery_otp: generateOTP(),
+        distance: 2.8,
+        ml_score: 0.86,
+        ml_priority: "MEDIUM",
+        created_at: hoursAgo(0.3),
+        updated_at: hoursAgo(0.3),
+      });
+
+      // Delivery 7: Pending Task (Available Delivery)
+      await addDoc(collection(db, "deliveries"), {
+        match_id: match7.id,
+        donation: { ...SEED_DONATIONS[8], id: donationIds[8] },
+        request: { ...SEED_REQUESTS[8], id: requestIds[8] },
+        pickup_status: "pending",
+        delivery_status: "pending",
+        pickup_otp: generateOTP(),
+        delivery_otp: generateOTP(),
+        distance: 5.1,
+        ml_score: 0.93,
+        ml_priority: "HIGH",
+        created_at: hoursAgo(0.8),
+        updated_at: hoursAgo(0.8),
+      });
+
+      // Delivery 8: Pending Task (Available Delivery)
+      await addDoc(collection(db, "deliveries"), {
+        match_id: match8.id,
+        donation: { ...SEED_DONATIONS[10], id: donationIds[10] },
+        request: { ...SEED_REQUESTS[10], id: requestIds[10] },
+        pickup_status: "pending",
+        delivery_status: "pending",
+        pickup_otp: generateOTP(),
+        delivery_otp: generateOTP(),
+        distance: 1.5,
+        ml_score: 0.81,
+        ml_priority: "MEDIUM",
+        created_at: hoursAgo(1.0),
+        updated_at: hoursAgo(1.0),
+      });
+
+      addLog("✅ 8 deliveries seeded with live tracking data (including available deliveries)");
 
       addLog("");
       addLog("🎉 Real-world demo environment successfully initialized!");
-      addLog("   → Taj West End (Donor): 3 donations (1 active, 2 matched)");
-      addLog("   → Robin Hood Army (NGO): 3 requests (1 active, 2 matched)");
+      addLog("   → Green Cafe (Donor): 3 donations (1 active, 2 matched)");
+      addLog("   → Hope Foundation (NGO): 3 requests (1 active, 2 matched)");
       addLog("   → Live Tracking: Active for both Donor & NGO dashboards");
 
       setStatus("done");

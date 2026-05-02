@@ -50,9 +50,9 @@ export function NGOOverview() {
 
   const activeRequests = requests.filter((r) => r.status === "active").length;
   const pendingMatches = pendingMatchList.length;
-  const receivedDonations = requests.filter((r) => r.status === "fulfilled").length;
+  const receivedDonations = requests.filter((r) => r.status === "completed").length;
   const peopleFed = requests
-    .filter((r) => r.status === "fulfilled")
+    .filter((r) => r.status === "completed")
     .reduce((acc, r) => acc + (r.people_count || 0), 0);
 
   if (loading) {

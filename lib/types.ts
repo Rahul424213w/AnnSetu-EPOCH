@@ -3,7 +3,7 @@ import type { Timestamp } from "firebase/firestore";
 export type FoodType = "veg" | "non-veg" | "packaged";
 export type UrgencyLevel = "low" | "medium" | "high";
 export type DonationStatus = "active" | "matched" | "picked" | "delivered" | "expired";
-export type RequestStatus = "active" | "matched" | "fulfilled" | "cancelled";
+export type RequestStatus = "active" | "matched" | "completed" | "cancelled";
 export type DeliveryStatus = "pending" | "assigned" | "pickup" | "in_transit" | "delivered";
 export type PickupStatus = "pending" | "arrived" | "picked";
 
